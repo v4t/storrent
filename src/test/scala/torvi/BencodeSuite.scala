@@ -23,4 +23,27 @@ class BencodeSuite extends FunSuite {
     val value = "i-500e"
     assert(BencodeParser.parse(value) == List(BencodeIntValue(-500)))
   }
+
+  test("Bencode decodes string lists") {
+    val value = "l3:foo3:bare"
+    assert(
+      BencodeParser.parse(value) == List(BencodeListValue(List(BencodeStringValue("foo"), BencodeStringValue("bar"))))
+    )
+  }
+
+  test("Bencode decodes mixed string and integer lists") {
+    val value = "l3:fooi2ee"
+    assert(
+      BencodeParser.parse(value) == List(BencodeListValue(List(BencodeStringValue("foo"), BencodeIntValue(2))))
+    )
+  }
+
+  test("Bencode decodes list of lists") {
+    val value = "ll3:fooel3:baree"
+    assert(BencodeParser.parse(value) == List(BencodeListValue(List(
+      BencodeListValue(List(BencodeStringValue("foo"))),
+      BencodeListValue(List(BencodeStringValue("bar")))
+    ))))
+  }
 }
+

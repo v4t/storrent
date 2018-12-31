@@ -8,6 +8,8 @@ case class BencodeStringValue(value: String) extends BencodeValue
 
 case class BencodeIntValue(value: Long) extends BencodeValue
 
+case class BencodeListValue(values: List[BencodeValue]) extends BencodeValue
+
 import scala.util.parsing.combinator._
 
 object BencodeParser extends RegexParsers {
@@ -24,7 +26,7 @@ object BencodeParser extends RegexParsers {
 
   def bencode: Parser[List[BencodeValue]] = rep(value)
 
-  def value: Parser[BencodeValue] = elem
+  def value: Parser[BencodeValue] = elem ||| list
 
   def elem: Parser[BencodeValue] = emptyString ||| string ||| int
 
@@ -36,4 +38,5 @@ object BencodeParser extends RegexParsers {
 
   def int: Parser[BencodeValue] = "i" ~> """(0|\-?[1-9]\d*)""".r <~ "e" ^^ (i => BencodeIntValue(i.toLong))
 
+  def list: Parser[BencodeValue] = "l" ~> rep(value) <~ "e" ^^ (i => BencodeListValue(i))
 }
