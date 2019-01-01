@@ -45,5 +45,44 @@ class BencodeSuite extends FunSuite {
       BencodeListValue(List(BencodeStringValue("bar")))
     ))))
   }
+
+  test("Bencode decodes empty list") {
+    val value = "le"
+    assert(BencodeParser.parse(value) == List(BencodeListValue(List())))
+  }
+
+  test("Bencode decodes dictionaries with one element") {
+    val value = "d3:foo3:bare"
+    assert(
+      BencodeParser.parse(value) == List(BencodeDictValue(Map(BencodeStringValue("foo") -> BencodeStringValue("bar"))))
+    )
+  }
+
+  test("Bencode decodes dictionaries with mixed elements") {
+    val value = "d3:foo3:bar3:inti45ee"
+    assert(
+      BencodeParser.parse(value) == List(BencodeDictValue(Map(
+        BencodeStringValue("foo") -> BencodeStringValue("bar"),
+        BencodeStringValue("int") -> BencodeIntValue(45)
+      )))
+    )
+  }
+
+  test("Bencode decodes dictionaries inside dictionaries") {
+    val value = "d3:food3:bari99eee"
+    assert(
+      BencodeParser.parse(value) == List(BencodeDictValue(Map(
+        BencodeStringValue("foo") -> BencodeDictValue(Map(
+          BencodeStringValue("bar") -> BencodeIntValue(99)))
+      )))
+    )
+  }
+
+  test("Bencode decodes empty dictionaries") {
+    val value = "de"
+    assert(
+      BencodeParser.parse(value) == List(BencodeDictValue(Map()))
+    )
+  }
 }
 
