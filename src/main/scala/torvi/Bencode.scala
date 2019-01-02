@@ -49,3 +49,21 @@ object BencodeParser extends RegexParsers {
   def dictionary: Parser[BencodeDictValue] = "d" ~> rep(string ~ value) <~ "e" ^^ (i =>
     BencodeDictValue(i.map(x => (BencodeStringValue(x._1.value), x._2)).toMap))
 }
+
+object BencodeEncoder {
+
+  def encode(values: List[BencodeValue]): String = encodeValues(values, "")
+
+  private def encodeValues(values: List[BencodeValue], result: String): String = {
+    if(values == Nil) return result
+    val head = values.head
+    val tail = values.tail
+    head match {
+      case BencodeStringValue(str) => encodeValues(tail, result + (str.size + ":" + str))
+      case BencodeIntValue(int) => encodeValues(tail, result + ("i" + int + "e"))
+      case BencodeListValue(list) => encodeValues(tail, result + ("l" + encodeValues(list, "") + "e"))
+     // case BencodeDictValue(dict) => encodeValues(tail, result + ("d" + encodeValues(dict, "") + "e"))
+    }
+  }
+
+}
