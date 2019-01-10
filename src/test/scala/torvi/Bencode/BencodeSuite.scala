@@ -1,4 +1,4 @@
-package torvi
+package torvi.Bencode
 
 import org.scalatest.FunSuite
 
