@@ -1,14 +1,26 @@
 package torvi
-import akka.actor.{Props, ActorSystem}
 
-class Main {
+import java.nio.file.{Files, Paths}
+
+import akka.actor.{ActorSystem, Props}
+
+object Main {
   def main(args: Array[String]) {
     if (args.isEmpty) {
       println("Usage: storrent [torrent file]")
       System.exit(0)
     }
 
+    if (!Files.exists(Paths.get(args(0)))) {
+      println("Given file does not exist")
+      System.exit(0)
+    }
+
     val system = ActorSystem("scala-torrent")
-    
+    val torrent = system.actorOf(Props[STorrent], "STorrent")
+
+    torrent ! StartDownload(args(0))
+
+    system.terminate()
   }
 }
