@@ -3,6 +3,9 @@ package torvi
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{ActorSystem, Props}
+import torvi.Bencode.BencodeParser
+
+import scala.io.{Codec, Source}
 
 object Main {
   def main(args: Array[String]) {
@@ -20,7 +23,6 @@ object Main {
     val torrent = system.actorOf(Props[STorrent], "STorrent")
 
     torrent ! StartDownload(args(0))
-
     system.terminate()
   }
 }

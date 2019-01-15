@@ -2,7 +2,7 @@ package torvi.Bencode
 
 import org.scalatest.FunSuite
 
-class BencodeSuite extends FunSuite {
+class BencodeParserSuite extends FunSuite {
 
   test("Bencode decodes string literals") {
     val value = "4:test"

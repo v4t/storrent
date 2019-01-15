@@ -27,7 +27,7 @@ object BencodeParser extends RegexParsers {
   def emptyString: Parser[BencodeValue] = "0:" ^^ (_ => BencodeStringValue(""))
 
   def string: Parser[BencodeStringValue] = ("""[1-9]\d*""".r <~ ":") >> { strLength =>
-    repN(strLength.toInt, ".|\n".r) ^^ (i => BencodeStringValue(i.mkString))
+    repN(strLength.toInt, elem("any char", c => true)) ^^ (i => BencodeStringValue(i.mkString))
   }
 
   def int: Parser[BencodeIntValue] = "i" ~> """(0|\-?[1-9]\d*)""".r <~ "e" ^^ (i => BencodeIntValue(i.toLong))
