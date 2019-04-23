@@ -1,7 +1,7 @@
 package torvi
 
 import akka.actor.Actor
-import torvi.bencode.{BencodeDictValue, BencodeIntValue, BencodeListValue, BencodeParser, BencodeStringValue, BencodeValue}
+import torvi.bencode.{BencodeDict, BencodeInt, BencodeList, BencodeParser, BencodeString, BencodeValue}
 import torvi.metainfo.{MetaInfo, MetaInfoDictionary, MetaInfoException}
 
 import scala.io.{Codec, Source}

@@ -24,18 +24,18 @@ object BencodeParser extends RegexParsers {
 
   def elem: Parser[BencodeValue] = emptyString ||| string ||| int
 
-  def emptyString: Parser[BencodeValue] = "0:" ^^ (_ => BencodeStringValue(""))
+  def emptyString: Parser[BencodeValue] = "0:" ^^ (_ => BencodeString(""))
 
-  def string: Parser[BencodeStringValue] = ("""[1-9]\d*""".r <~ ":") >> { strLength =>
-    repN(strLength.toInt, elem("any char", c => true)) ^^ (i => BencodeStringValue(i.mkString))
+  def string: Parser[BencodeString] = ("""[1-9]\d*""".r <~ ":") >> { strLength =>
+    repN(strLength.toInt, elem("any char", c => true)) ^^ (i => BencodeString(i.mkString))
   }
 
-  def int: Parser[BencodeIntValue] = "i" ~> """(0|\-?[1-9]\d*)""".r <~ "e" ^^ (i => BencodeIntValue(i.toLong))
+  def int: Parser[BencodeInt] = "i" ~> """(0|\-?[1-9]\d*)""".r <~ "e" ^^ (i => BencodeInt(i.toLong))
 
-  def list: Parser[BencodeListValue] = "l" ~> rep(value) <~ "e" ^^ (i => BencodeListValue(i))
+  def list: Parser[BencodeList] = "l" ~> rep(value) <~ "e" ^^ (i => BencodeList(i))
 
-  def dictionary: Parser[BencodeDictValue] = "d" ~> rep(string ~ value) <~ "e" ^^ (i =>
-    BencodeDictValue(i.map(x => (BencodeStringValue(x._1.value), x._2)).toMap))
+  def dictionary: Parser[BencodeDict] = "d" ~> rep(string ~ value) <~ "e" ^^ (i =>
+    BencodeDict(i.map(x => (BencodeString(x._1.value), x._2)).toMap))
 }
 
 

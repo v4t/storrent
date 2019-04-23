@@ -9,14 +9,14 @@ object BencodeEncoder {
     val head = values.head
     val tail = values.tail
     head match {
-      case BencodeStringValue(str) => encodeValues(tail, result + (str.size + ":" + str))
-      case BencodeIntValue(int) => encodeValues(tail, result + ("i" + int + "e"))
-      case BencodeListValue(list) => encodeValues(tail, result + ("l" + encodeValues(list, "") + "e"))
-      case BencodeDictValue(dict) => encodeValues(tail, result + ("d" + encodeDict(dict) + "e"))
+      case BencodeString(str) => encodeValues(tail, result + (str.size + ":" + str))
+      case BencodeInt(int) => encodeValues(tail, result + ("i" + int + "e"))
+      case BencodeList(list) => encodeValues(tail, result + ("l" + encodeValues(list, "") + "e"))
+      case BencodeDict(dict) => encodeValues(tail, result + ("d" + encodeDict(dict) + "e"))
     }
   }
 
-  private def encodeDict(dict: Map[BencodeStringValue, BencodeValue]): String = {
+  private def encodeDict(dict: Map[BencodeString, BencodeValue]): String = {
     val keys = dict.keys.toSeq.sortBy(_.value)
     val contents = for {
       key <- keys
