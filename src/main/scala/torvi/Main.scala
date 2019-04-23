@@ -3,7 +3,7 @@ package torvi
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{ActorSystem, Props}
-import torvi.Bencode.BencodeParser
+import torvi.bencode.BencodeParser
 
 import scala.io.{Codec, Source}
 

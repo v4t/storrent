@@ -1,4 +1,4 @@
-package torvi.Bencode
+package torvi.bencode
 
 object BencodeEncoder {
 
