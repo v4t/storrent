@@ -9,13 +9,102 @@ import scala.util.{Failure, Try}
 case class StartDownload(torrentFile: String)
 
 
-case class MetaInfo(info: String,
-                    announceList: Set[String],
-                    creationDate: Option[Long],
-                    comment: Option[String],
-                    createdBy: Option[String],
-                    encoding: Option[String])
+case class MetaInfo(
+  info: MetaInfoDictionary,
+  announceList: Set[String],
+  creationDate: Option[Long],
+  comment: Option[String],
+  createdBy: Option[String],
+  encoding: Option[String]
+)
 
+case class MetaInfoDictionary(
+  pieceLength: Long,
+  pieces: String,
+  noExternalPeerSource: Option[Long],
+  name: String,
+  files: List[MetaInfoFile]
+)
+
+object MetaInfoDictionary {
+  def fromBencode(bencodeDict: Map[BencodeStringValue, BencodeValue]): MetaInfoDictionary = {
+    val pieceLength = bencodeDict.get(BencodeStringValue("piece length")) match {
+      case Some(BencodeIntValue(value)) => value
+    }
+    val pieces = bencodeDict.get(BencodeStringValue("pieces")) match {
+      case Some(BencodeStringValue(value)) => "pieces here"
+    }
+    val noExternalPeerSource = bencodeDict.get(BencodeStringValue("private")) match {
+      case Some(BencodeIntValue(value)) => Some(value)
+      case _ => None
+    }
+    val name = bencodeDict.get(BencodeStringValue("name")) match {
+      case Some(BencodeStringValue(value)) => value
+    }
+    val files = MetaInfoFile.fromBencode(bencodeDict)
+
+    MetaInfoDictionary(
+      pieceLength = pieceLength,
+      pieces = pieces,
+      noExternalPeerSource = noExternalPeerSource,
+      name = name,
+      files = files
+    )
+  }
+}
+
+case class MetaInfoFile(
+  path: List[String],
+  length: Long,
+  md5Sum: Option[String]
+)
+
+object MetaInfoFile {
+  def fromBencode(bencodeDict: Map[BencodeStringValue, BencodeValue]): List[MetaInfoFile] = {
+    if (bencodeDict.isDefinedAt(BencodeStringValue("files")))
+      multipleFiles(bencodeDict)
+    else
+      singleFile(bencodeDict)
+  }
+
+
+  private def multipleFiles(bencodeDict: Map[BencodeStringValue, BencodeValue]): List[MetaInfoFile] = {
+    val fileDicts = bencodeDict(BencodeStringValue("files")) match {
+      case BencodeListValue(f) => f
+    }
+
+    val fileLs = fileDicts.map {
+      case BencodeDictValue(map) => {
+        val path = map.get(BencodeStringValue("path")) match {
+          case Some(BencodeListValue(vs)) => vs map { case BencodeStringValue(x) => x }
+        }
+        val md5Sum = map.get(BencodeStringValue("md5sum")) match {
+          case Some(BencodeStringValue(value)) => Some(value)
+          case _ => None
+        }
+        val length = map.get(BencodeStringValue("length")) match {
+          case Some(BencodeIntValue(value)) => value
+        }
+        MetaInfoFile(path, length, md5Sum)
+      }
+    }
+    fileLs
+  }
+
+  private def singleFile(bencodeDict: Map[BencodeStringValue, BencodeValue]): List[MetaInfoFile] = {
+    val path = bencodeDict.get(BencodeStringValue("name")) match {
+      case Some(BencodeStringValue(value)) => List(value)
+    }
+    val length = bencodeDict.get(BencodeStringValue("length")) match {
+      case Some(BencodeIntValue(value)) => value
+    }
+    val md5Sum = bencodeDict.get(BencodeStringValue("md5sum")) match {
+      case Some(BencodeStringValue(value)) => Some(value)
+      case _ => None
+    }
+    List(MetaInfoFile(path = path, length = length, md5Sum = md5Sum))
+  }
+}
 
 class STorrent extends Actor {
   def receive = {
@@ -25,8 +114,8 @@ class STorrent extends Actor {
       val contents = source.mkString
       source.close
       val bencodeValues = BencodeParser.parse(contents)
-
       val metaInfo = metainfo(bencodeValues)
+
       metaInfo match {
         case Some(x) => println(x)
         case None => println("No metainfo :(")
@@ -39,9 +128,13 @@ class STorrent extends Actor {
   def metainfo(bencodeValues: List[BencodeValue]): Option[MetaInfo] = {
     if (bencodeValues.size != 1) return None
     val metafile = bencodeValues.head
+
     metafile match {
-      case BencodeDictValue(map) => Some(MetaInfo(
-        info = "foo",
+      case BencodeDictValue(map) =>
+        val infoMap = map(BencodeStringValue("info")) match { case BencodeDictValue(im) => im}
+
+        Some(MetaInfo(
+        info = MetaInfoDictionary.fromBencode(infoMap),
         announceList = metainfoAnnounce(map),
         creationDate = metainfoCreationDate(map),
         comment = metainfoComment(map),
@@ -56,7 +149,7 @@ class STorrent extends Actor {
     val announce = bencodeDict.get(BencodeStringValue("announce"))
     val announceList = bencodeDict.get(BencodeStringValue("announce-list"))
     if (announce.isEmpty && announceList.isEmpty)
-      throw MetaInfoException("Either announce or announce-list have to be specified")
+    throw MetaInfoException("Either announce or announce-list have to be specified")
 
     if (announce.isDefined) announce match {
       case Some(BencodeStringValue(url)) => return Set(url)
