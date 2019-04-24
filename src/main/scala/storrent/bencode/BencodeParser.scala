@@ -37,5 +37,3 @@ object BencodeParser extends RegexParsers {
   def dictionary: Parser[BencodeDict] = "d" ~> rep(string ~ value) <~ "e" ^^ (i =>
     BencodeDict(i.map(x => (BencodeString(x._1.value), x._2)).toMap))
 }
-
-

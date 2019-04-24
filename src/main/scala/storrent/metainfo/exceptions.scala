@@ -1,3 +1,3 @@
 package storrent.metainfo
 
-case class MetaInfoException(msg: String) extends Exception
+final case class MetaInfoException(message: String) extends Exception(message)

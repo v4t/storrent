@@ -11,6 +11,7 @@ case class MetaInfoDictionary(
 )
 
 object MetaInfoDictionary {
+
   def fromBencode(bencodeDict: Map[BencodeString, BencodeValue]): MetaInfoDictionary =
     MetaInfoDictionary(
       pieceLength = pieceLength(bencodeDict),
@@ -23,15 +24,15 @@ object MetaInfoDictionary {
   private def pieceLength(dict: Map[BencodeString, BencodeValue]): Long =
     dict.get(BencodeString("piece length")) match {
       case Some(BencodeInt(value)) => value
-      case Some(_) => throw MetaInfoException("Piece length field must be an integer")
-      case None => throw MetaInfoException("Piece length field is required")
+      case Some(_) => throw MetaInfoException("Field 'piece length' expects an integer value")
+      case None => throw MetaInfoException("Field 'piece length' is required")
     }
 
   private def pieces(dict: Map[BencodeString, BencodeValue]): String =
     dict.get(BencodeString("pieces")) match {
       case Some(BencodeString(value)) => value
-      case Some(_) => throw MetaInfoException("Pieces field must be a string")
-      case None => throw MetaInfoException("Pieces field is required")
+      case Some(_) => throw MetaInfoException("Field 'pieces' expects a string value")
+      case None => throw MetaInfoException("Field 'pieces' is required")
     }
 
   private def noExternalPeerSource(dict: Map[BencodeString, BencodeValue]): Option[Long] =
@@ -43,8 +44,8 @@ object MetaInfoDictionary {
   private def name(dict: Map[BencodeString, BencodeValue]): String =
     dict.get(BencodeString("name")) match {
       case Some(BencodeString(value)) => value
-      case Some(_) => throw MetaInfoException("Name field must be a string")
-      case None => throw MetaInfoException("Name field is required")
+      case Some(_) => throw MetaInfoException("Field 'name' expects a string value")
+      case None => throw MetaInfoException("Field 'name' is required")
     }
 
 }

@@ -1,7 +1,8 @@
 package storrent.metainfo
 
-import storrent.bencode.{BencodeDict, BencodeInt, BencodeList, BencodeParser, BencodeString, BencodeValue}
-import scala.io.{Codec, Source}
+import storrent.bencode._
+
+import scala.util.Try
 
 case class MetaInfo(
   info: MetaInfoDictionary,
@@ -13,76 +14,76 @@ case class MetaInfo(
 )
 
 object MetaInfo {
-  def fromFile(fileName: String): Option[MetaInfo] = {
-    val source = Source.fromFile(fileName)(Codec.ISO8859)
-    val contents = source.mkString
-    source.close
-    val bencodeValues = BencodeParser.parse(contents)
-    fromBencode(bencodeValues)
+
+  def fromBencode(bencodeValues: List[BencodeValue]): Try[MetaInfo] = Try(parseMetaInfo(bencodeValues))
+
+  private def parseMetaInfo(bencodeValues: List[BencodeValue]): MetaInfo = {
+    if (bencodeValues.size != 1) throw MetaInfoException("Invalid bencode values for metainfo file")
+    val dict = bencodeValues.head match {
+      case BencodeDict(map) => map
+      case _ => throw MetaInfoException("Metainfo file should contain only one dictionary value")
+    }
+    val infoDict = dict.get(BencodeString("info")) match {
+      case Some(BencodeDict(map)) => map
+      case Some(_) => throw MetaInfoException("Field 'info' should be a dictionary")
+      case None => throw MetaInfoException("Field 'info' is required")
+    }
+    MetaInfo(
+      info = MetaInfoDictionary.fromBencode(infoDict),
+      announceList = announce(dict),
+      creationDate = creationDate(dict),
+      comment = comment(dict),
+      createdBy = createdBy(dict),
+      encoding = encoding(dict)
+    )
   }
 
-  def fromBencode(bencodeValues: List[BencodeValue]): Option[MetaInfo] = {
-    if (bencodeValues.size != 1) return None
-    bencodeValues.head match {
-      case BencodeDict(map) =>
-        val infoMap = map(BencodeString("info")) match {
-          case BencodeDict(im) => im
-        }
-        Some(MetaInfo(
-          info = MetaInfoDictionary.fromBencode(infoMap),
-          announceList = metaInfoAnnounce(map),
-          creationDate = metaInfoCreationDate(map),
-          comment = metainfoComment(map),
-          createdBy = metaInfoCreatedBy(map),
-          encoding = metaInfoEncoding(map)
-        ))
-      case _ => None
-    }
-  }
+  private def announce(dict: Map[BencodeString, BencodeValue]): Set[String] =
+    if (dict.contains(BencodeString("announce"))) announceSingle(dict)
+    else if (dict.contains(BencodeString("announce-list"))) announceList(dict)
+    else throw MetaInfoException("Either 'announce' or 'announce-list' have to be specified")
 
-  private def metaInfoAnnounce(bencodeDict: Map[BencodeString, BencodeValue]): Set[String] = {
-    val announce = bencodeDict.get(BencodeString("announce"))
-    val announceList = bencodeDict.get(BencodeString("announce-list"))
-    if (announce.isEmpty && announceList.isEmpty)
-      throw MetaInfoException("Either announce or announce-list have to be specified")
 
-    if (announce.isDefined) announce match {
-      case Some(BencodeString(url)) => return Set(url)
-      case _ => throw MetaInfoException("Invalid format in metainfo file: announce should be a string.")
+  private def announceSingle(dict: Map[BencodeString, BencodeValue]): Set[String] =
+    dict(BencodeString("announce")) match {
+      case BencodeString(url) => Set(url)
+      case _ => throw MetaInfoException("Field 'announce' expects a string value.")
     }
 
-    val urls = announceList.get match {
+  private def announceList(dict: Map[BencodeString, BencodeValue]): Set[String] = {
+    val urls = dict(BencodeString("announce-list")) match {
       case BencodeList(c) => c map {
         case BencodeString(u) => u
-        case _ => throw MetaInfoException("Invalid format in metainfo file: announce-list should contain only strings.")
+        case _ => throw MetaInfoException("Field 'announce-list' should contain only strings values.")
       }
-      case _ => throw MetaInfoException("Invalid format in metainfo file: announce-list should be a list.")
+      case _ => throw MetaInfoException("Field 'announce-list' expects a list value.")
     }
     urls.foldLeft(Set[String]()) { (set, i) => set + i }
   }
 
-  private def metaInfoCreationDate(bencodeDict: Map[BencodeString, BencodeValue]): Option[Long] =
-    bencodeDict.get(BencodeString("creation date")) match {
+  private def creationDate(dict: Map[BencodeString, BencodeValue]): Option[Long] =
+    dict.get(BencodeString("creation date")) match {
       case Some(BencodeInt(date)) => Some(date)
       case _ => None
     }
 
-  private def metaInfoCreatedBy(bencodeDict: Map[BencodeString, BencodeValue]): Option[String] =
-    bencodeDict.get(BencodeString("created by")) match {
+  private def createdBy(dict: Map[BencodeString, BencodeValue]): Option[String] =
+    dict.get(BencodeString("created by")) match {
       case Some(BencodeString(s)) => Some(s)
       case _ => None
     }
 
-  private def metainfoComment(bencodeDict: Map[BencodeString, BencodeValue]): Option[String] =
-    bencodeDict.get(BencodeString("comment")) match {
+  private def comment(dict: Map[BencodeString, BencodeValue]): Option[String] =
+    dict.get(BencodeString("comment")) match {
       case Some(BencodeString(s)) => Some(s)
       case _ => None
     }
 
-  private def metaInfoEncoding(bencodeDict: Map[BencodeString, BencodeValue]): Option[String] =
-    bencodeDict.get(BencodeString("encoding")) match {
+  private def encoding(dict: Map[BencodeString, BencodeValue]): Option[String] =
+    dict.get(BencodeString("encoding")) match {
       case Some(BencodeString(s)) => Some(s)
       case _ => None
     }
 
 }
+

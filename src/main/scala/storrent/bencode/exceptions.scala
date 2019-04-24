@@ -1,5 +1,5 @@
 package storrent.bencode
 
-case class BencodeParseException(str: String) extends Exception
+final case class BencodeParseException(message: String) extends Exception(message)
 
-case class BencodeWriteException(str: String) extends Exception
+final case class BencodeWriteException(message: String) extends Exception(message)

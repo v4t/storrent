@@ -3,11 +3,9 @@ package storrent
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{ActorSystem, Props}
-import storrent.bencode.BencodeParser
-
-import scala.io.{Codec, Source}
 
 object Main {
+
   def main(args: Array[String]) {
     if (args.isEmpty) {
       println("Usage: storrent [torrent file]")
@@ -25,4 +23,5 @@ object Main {
     torrent ! StartDownload(args(0))
     system.terminate()
   }
+
 }
