@@ -1,4 +1,4 @@
-package torvi.bencode
+package storrent.bencode
 
 case class BencodeParseException(str: String) extends Exception
 

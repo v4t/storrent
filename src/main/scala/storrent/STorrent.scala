@@ -1,7 +1,7 @@
-package torvi
+package storrent
 
 import akka.actor.Actor
-import torvi.metainfo.MetaInfo
+import storrent.metainfo.MetaInfo
 
 case class StartDownload(torrentFile: String)
 

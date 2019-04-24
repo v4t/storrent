@@ -1,9 +1,9 @@
-package torvi
+package storrent
 
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{ActorSystem, Props}
-import torvi.bencode.BencodeParser
+import storrent.bencode.BencodeParser
 
 import scala.io.{Codec, Source}
 

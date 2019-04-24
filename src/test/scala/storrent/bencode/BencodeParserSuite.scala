@@ -1,4 +1,4 @@
-package torvi.bencode
+package storrent.bencode
 
 import org.scalatest.FunSuite
 

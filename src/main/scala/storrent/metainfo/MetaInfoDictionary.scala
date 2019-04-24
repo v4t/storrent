@@ -1,6 +1,6 @@
-package torvi.metainfo
+package storrent.metainfo
 
-import torvi.bencode.{BencodeInt, BencodeString, BencodeValue}
+import storrent.bencode.{BencodeInt, BencodeString, BencodeValue}
 
 case class MetaInfoDictionary(
   pieceLength: Long,

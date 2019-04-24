@@ -1,6 +1,6 @@
-package torvi.metainfo
+package storrent.metainfo
 
-import torvi.bencode.{BencodeDict, BencodeInt, BencodeList, BencodeParser, BencodeString, BencodeValue}
+import storrent.bencode.{BencodeDict, BencodeInt, BencodeList, BencodeParser, BencodeString, BencodeValue}
 import scala.io.{Codec, Source}
 
 case class MetaInfo(

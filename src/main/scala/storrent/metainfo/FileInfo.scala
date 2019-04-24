@@ -1,6 +1,6 @@
-package torvi.metainfo
+package storrent.metainfo
 
-import torvi.bencode.{BencodeDict, BencodeInt, BencodeList, BencodeString, BencodeValue}
+import storrent.bencode.{BencodeDict, BencodeInt, BencodeList, BencodeString, BencodeValue}
 
 case class FileInfo(
   path: List[String],
