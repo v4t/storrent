@@ -9,47 +9,54 @@ case class FileInfo(
 )
 
 object FileInfo {
-  def fromBencode(bencodeDict: Map[BencodeString, BencodeValue]): List[FileInfo] = {
-    if (bencodeDict.isDefinedAt(BencodeString("files")))
-      multipleFiles(bencodeDict)
+  def fromBencode(infoDict: Map[BencodeString, BencodeValue]): List[FileInfo] = {
+    if (infoDict.isDefinedAt(BencodeString("files")))
+      multipleFiles(infoDict)
     else
-      singleFile(bencodeDict)
+      singleFile(infoDict)
   }
 
-  private def multipleFiles(bencodeDict: Map[BencodeString, BencodeValue]): List[FileInfo] = {
-    val fileDicts = bencodeDict(BencodeString("files")) match {
+  private def singleFile(infoDict: Map[BencodeString, BencodeValue]): List[FileInfo] =
+    List(FileInfo(path = singleFilePath(infoDict), length = fileLength(infoDict), md5Sum = fileMD5Sum(infoDict)))
+
+  private def multipleFiles(infoDict: Map[BencodeString, BencodeValue]): List[FileInfo] = {
+    val files = infoDict(BencodeString("files")) match {
       case BencodeList(f) => f
+      case _ => throw MetaInfoException("Files field must be a list")
     }
-
-    val fileLs = fileDicts.map {
-      case BencodeDict(map) => {
-        val path = map.get(BencodeString("path")) match {
-          case Some(BencodeList(vs)) => vs map { case BencodeString(x) => x }
-        }
-        val md5Sum = map.get(BencodeString("md5sum")) match {
-          case Some(BencodeString(value)) => Some(value)
-          case _ => None
-        }
-        val length = map.get(BencodeString("length")) match {
-          case Some(BencodeInt(value)) => value
-        }
-        FileInfo(path, length, md5Sum)
-      }
+    files.map {
+      case BencodeDict(map) => FileInfo(path = multiFilePath(map), length = fileLength(map), md5Sum = fileMD5Sum(map))
+      case _ => throw MetaInfoException("Files list elements must only be dictionaries")
     }
-    fileLs
   }
 
-  private def singleFile(bencodeDict: Map[BencodeString, BencodeValue]): List[FileInfo] = {
-    val path = bencodeDict.get(BencodeString("name")) match {
+  private def singleFilePath(dict: Map[BencodeString, BencodeValue]): List[String] =
+    dict.get(BencodeString("name")) match {
       case Some(BencodeString(value)) => List(value)
+      case Some(_) => throw MetaInfoException("Single file name field must be a string")
+      case None => throw MetaInfoException("Missing name field in single file info")
     }
-    val length = bencodeDict.get(BencodeString("length")) match {
+
+  private def multiFilePath(dict: Map[BencodeString, BencodeValue]): List[String] =
+    dict.get(BencodeString("path")) match {
+      case Some(BencodeList(parts)) => parts map {
+        case BencodeString(x) => x
+        case _ => throw MetaInfoException("Path for file in multiple files info must contain only strings")
+      }
+      case Some(_) => throw MetaInfoException("Path for file in multiple files info must be a list")
+      case None => throw MetaInfoException("Missing path for file in multiple files info")
+    }
+
+  private def fileLength(dict: Map[BencodeString, BencodeValue]): Long =
+    dict.get(BencodeString("length")) match {
       case Some(BencodeInt(value)) => value
+      case Some(_) => throw MetaInfoException("File length field must be an integer")
+      case None => throw MetaInfoException("Missing length field in file info")
     }
-    val md5Sum = bencodeDict.get(BencodeString("md5sum")) match {
+
+  private def fileMD5Sum(dict: Map[BencodeString, BencodeValue]): Option[String] =
+    dict.get(BencodeString("md5sum")) match {
       case Some(BencodeString(value)) => Some(value)
       case _ => None
     }
-    List(FileInfo(path = path, length = length, md5Sum = md5Sum))
-  }
 }
