@@ -1,11 +1,14 @@
 package storrent.metainfo
 
+import java.nio.charset.{Charset, StandardCharsets}
+
 import storrent.bencode._
 
 import scala.util.Try
 
 case class MetaInfo(
   info: MetaInfoDictionary,
+  infoHash: String,
   announceList: Set[String],
   creationDate: Option[Long],
   comment: Option[String],
@@ -23,19 +26,28 @@ object MetaInfo {
       case BencodeDict(map) => map
       case _ => throw MetaInfoException("Metainfo file should contain only one dictionary value")
     }
-    val infoDict = dict.get(BencodeString("info")) match {
-      case Some(BencodeDict(map)) => map
+    val info = dict.get(BencodeString("info")) match {
+      case Some(x@BencodeDict(_)) => x
       case Some(_) => throw MetaInfoException("Field 'info' should be a dictionary")
       case None => throw MetaInfoException("Field 'info' is required")
     }
     MetaInfo(
-      info = MetaInfoDictionary.fromBencode(infoDict),
+      info = MetaInfoDictionary.fromBencode(info.dict),
+      infoHash = calculateInfoHash(info),
       announceList = announce(dict),
       creationDate = creationDate(dict),
       comment = comment(dict),
       createdBy = createdBy(dict),
       encoding = encoding(dict)
     )
+  }
+
+  private def calculateInfoHash(dict: BencodeDict): String = {
+    val infoBytes = BencodeEncoder.encode(List(dict)).getBytes(StandardCharsets.ISO_8859_1)
+    val md = java.security.MessageDigest.getInstance("SHA-1")
+    md.digest(infoBytes)
+      .map("%02X" format _)
+      .mkString
   }
 
   private def announce(dict: Map[BencodeString, BencodeValue]): Set[String] =

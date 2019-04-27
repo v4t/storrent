@@ -35,7 +35,7 @@ object Main {
     // Create metainfo
     val metaInfo = MetaInfo.fromBencode(bencodeValues)
     metaInfo match {
-      case Success(x) => println("success " + x.info.pieces.length)
+      case Success(x) => println("success " + x.infoHash)
       case Failure(MetaInfoException(msg)) => println("metainfo error " + msg)
       case Failure(f) => println("some other error " + f)
     }
