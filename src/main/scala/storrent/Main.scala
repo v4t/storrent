@@ -1,6 +1,6 @@
 package storrent
 
-import java.net.URLEncoder
+gimport java.net.URLEncoder
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{ActorSystem, Props}
@@ -26,7 +26,7 @@ object Main {
     val system = ActorSystem("scala-torrent")
     val torrent = system.actorOf(Props[STorrent], "STorrent")
 
-    // Parse torrentfile
+    // Parse torrent file
     val torrentFile = args(0)
     val source = Source.fromFile(torrentFile)(Codec.ISO8859)
     val contents = source.mkString
@@ -40,6 +40,7 @@ object Main {
       case Failure(f) => throw f
     }
 
+    // Create tracker request payload
     val port = 6881
     val peerId = "-ST-001-" + Random.alphanumeric.take(12).mkString("")
     val req = TrackerRequest(
@@ -55,7 +56,15 @@ object Main {
       ip = None
     )
 
-    println(metaInfo.announceList.head + "?" + TrackerRequest.getQueryString(req))
+    val requestUrl = metaInfo.announceList.head + "?" + TrackerRequest.getQueryString(req)
+    println(requestUrl)
+
+    // Make tracker request
+    import scalaj.http._
+    val response: HttpResponse[String] = Http(requestUrl).asString
+    println(response.body)
+
+
     torrent ! StartDownload("start download")
     system.terminate()
   }
