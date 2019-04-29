@@ -1,13 +1,15 @@
 package storrent
 
+import java.net.URLEncoder
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{ActorSystem, Props}
 import storrent.bencode.BencodeParser
 import storrent.metainfo.{MetaInfo, MetaInfoException}
+import storrent.tracker.TrackerRequest
 
 import scala.io.{Codec, Source}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Random, Success}
 
 object Main {
 
@@ -21,7 +23,6 @@ object Main {
       println("Given file does not exist")
       System.exit(0)
     }
-
     val system = ActorSystem("scala-torrent")
     val torrent = system.actorOf(Props[STorrent], "STorrent")
 
@@ -33,13 +34,28 @@ object Main {
     val bencodeValues = BencodeParser.parse(contents)
 
     // Create metainfo
-    val metaInfo = MetaInfo.fromBencode(bencodeValues)
-    metaInfo match {
-      case Success(x) => println("success " + x.infoHash)
-      case Failure(MetaInfoException(msg)) => println("metainfo error " + msg)
-      case Failure(f) => println("some other error " + f)
+    val metaInfo = MetaInfo.fromBencode(bencodeValues) match {
+      case Success(x) => x;
+      case Failure(MetaInfoException(msg)) => throw MetaInfoException("metainfo error " + msg)
+      case Failure(f) => throw f
     }
 
+    val port = 6881
+    val peerId = "-ST-001-" + Random.alphanumeric.take(12).mkString("")
+    val req = TrackerRequest(
+      infoHash = URLEncoder.encode(new String(metaInfo.infoHash, "ISO-8859-1"), "ISO-8859-1"),
+      uploaded = 0,
+      downloaded = 0,
+      left = 0,
+      peerId = URLEncoder.encode(peerId, "ISO-8859-1"),
+      port = port,
+      compact = 1,
+      event = None,
+      numWant = Some(40),
+      ip = None
+    )
+
+    println(metaInfo.announceList.head + "?" + TrackerRequest.getQueryString(req))
     torrent ! StartDownload("start download")
     system.terminate()
   }

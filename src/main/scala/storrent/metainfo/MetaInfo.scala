@@ -1,6 +1,6 @@
 package storrent.metainfo
 
-import java.nio.charset.{Charset, StandardCharsets}
+import java.nio.charset.StandardCharsets
 
 import storrent.bencode._
 
@@ -8,7 +8,7 @@ import scala.util.Try
 
 case class MetaInfo(
   info: MetaInfoDictionary,
-  infoHash: String,
+  infoHash: Array[Byte],
   announceList: Set[String],
   creationDate: Option[Long],
   comment: Option[String],
@@ -42,12 +42,11 @@ object MetaInfo {
     )
   }
 
-  private def calculateInfoHash(dict: BencodeDict): String = {
-    val infoBytes = BencodeEncoder.encode(List(dict)).getBytes(StandardCharsets.ISO_8859_1)
+  private def calculateInfoHash(dict: BencodeDict): Array[Byte] = {
+    val infoBytes = BencodeEncoder.encode(List(dict))
+      .getBytes(StandardCharsets.ISO_8859_1)
     val md = java.security.MessageDigest.getInstance("SHA-1")
     md.digest(infoBytes)
-      .map("%02X" format _)
-      .mkString
   }
 
   private def announce(dict: Map[BencodeString, BencodeValue]): Set[String] =
