@@ -8,7 +8,7 @@ case class TrackerRequest(
   peerId: String,
   port: Int,
   compact: Int,
-  event: Option[String],
+  event: Option[Event],
   numWant: Option[Int],
   ip: Option[String],
 )
@@ -23,9 +23,15 @@ object TrackerRequest {
       s"left=${request.left}&" +
       s"port=${request.port}&" +
       s"compact=${request.compact}" +
-      (if (request.event.isDefined) s"&event=${request.event.get}" else "") +
+      (if (request.event.isDefined) s"&event=${eventToStr(request.event.get)}" else "") +
       (if (request.numWant.isDefined) s"&numwant=${request.numWant.get}" else "") +
       (if (request.ip.isDefined) s"&ip=${request.ip.get}" else "")
+  }
+
+  private def eventToStr(event: Event): String = event match {
+    case Started() => "started"
+    case Stopped() => "stopped"
+    case Completed() => "completed"
   }
 
 }
