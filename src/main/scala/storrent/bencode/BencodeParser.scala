@@ -6,15 +6,11 @@ object BencodeParser extends RegexParsers {
 
   override def skipWhitespace: Boolean = false
 
-  def parse(source: String) = {
+  def parse(source: String): List[BencodeValue] = {
     parseAll(bencode, source) match {
       case Success(matched, _) => matched
-      case Failure(msg, _) =>
-        println(msg)
-        throw new BencodeParseException(msg)
-      case Error(msg, _) =>
-        println(msg)
-        throw new BencodeParseException(msg)
+      case Failure(msg, _) => throw BencodeParseException(msg)
+      case Error(msg, _) => throw BencodeParseException(msg)
     }
   }
 

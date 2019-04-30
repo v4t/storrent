@@ -1,12 +1,13 @@
 package storrent
 
-gimport java.net.URLEncoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{ActorSystem, Props}
 import storrent.bencode.BencodeParser
 import storrent.metainfo.{MetaInfo, MetaInfoException}
-import storrent.tracker.TrackerRequest
+import storrent.tracker.{FailureResponse, SuccessResponse, TrackerRequest, TrackerResponse}
 
 import scala.io.{Codec, Source}
 import scala.util.{Failure, Random, Success}
@@ -57,13 +58,19 @@ object Main {
     )
 
     val requestUrl = metaInfo.announceList.head + "?" + TrackerRequest.getQueryString(req)
-    println(requestUrl)
+        println(requestUrl)
 
     // Make tracker request
     import scalaj.http._
-    val response: HttpResponse[String] = Http(requestUrl).asString
-    println(response.body)
+    val response: HttpResponse[Array[Byte]] = Http(requestUrl).asBytes
 
+    val resStr = new String(response.body, StandardCharsets.ISO_8859_1)
+    println(resStr)
+    val res = TrackerResponse.parse(resStr)
+    res match {
+      case SuccessResponse(complete, _, _, _, _, _, _) => println(complete)
+      case FailureResponse(msg) => println(msg)
+    }
 
     torrent ! StartDownload("start download")
     system.terminate()
