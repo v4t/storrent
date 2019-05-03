@@ -1,9 +1,10 @@
 package storrent.tracker
 
 import java.net.InetAddress
-import java.nio.charset.{Charset, StandardCharsets}
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 
-import storrent.bencode.{BencodeDict, BencodeInt, BencodeList, BencodeParseException, BencodeParser, BencodeString, BencodeValue}
+import storrent.bencode._
 
 sealed trait TrackerResponse
 
@@ -74,19 +75,13 @@ object TrackerResponse {
       case Some(_) => throw TrackerException("Field 'peers' should be a list or a string")
     }
 
-  private def peersString(peers: String): List[Peer] = {
-    val peerBytes = peers.getBytes(StandardCharsets.ISO_8859_1).grouped(6)
-    import java.nio.ByteBuffer
-
-    val result = peerBytes.map(p => {
-      Peer(
-        ip = InetAddress.getByAddress(p.take(4)).toString,
-        port = 0 // ByteBuffer.wrap(p.drop(4)).getInt
-      )
-    }).toList
-    println(result)
-    result
-  }
+  private def peersString(peers: String): List[Peer] =
+    peers.getBytes(StandardCharsets.ISO_8859_1)
+      .grouped(6)
+      .map(p => Peer(
+        ip = InetAddress.getByAddress(p.take(4)).toString.tail,
+        port = ByteBuffer.wrap(p.drop(4)).getShort & 0xffff
+      )).toList
 
   private def peersList(peers: List[BencodeValue]): List[Peer] = {
     val res = peers.map {
