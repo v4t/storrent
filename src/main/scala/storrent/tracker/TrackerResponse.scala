@@ -75,15 +75,22 @@ object TrackerResponse {
     }
 
   private def peersString(peers: String): List[Peer] = {
-    println("=========================================================")
-    println(peers.getBytes(StandardCharsets.ISO_8859_1).mkString)
-    println("=========================================================")
-    Nil
+    val peerBytes = peers.getBytes(StandardCharsets.ISO_8859_1).grouped(6)
+    import java.nio.ByteBuffer
+
+    val result = peerBytes.map(p => {
+      Peer(
+        ip = InetAddress.getByAddress(p.take(4)).toString,
+        port = 0 // ByteBuffer.wrap(p.drop(4)).getInt
+      )
+    }).toList
+    println(result)
+    result
   }
 
   private def peersList(peers: List[BencodeValue]): List[Peer] = {
-    val res = peers.map{
-      case BencodeDict(p) => Peer(ip = "", peerId = "", port = 0)
+    val res = peers.map {
+      case BencodeDict(p) => Peer(ip = "", port = 0)
       case _ => throw TrackerException("Peers list should contain only dictionary values")
     }
     res

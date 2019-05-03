@@ -1,7 +1,7 @@
 package storrent.tracker
 
 case class Peer(
-  peerId: String,
   ip: String,
-  port: Int
+  port: Int,
+  peerId: Option[String] = None
 )
