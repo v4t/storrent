@@ -83,12 +83,30 @@ object TrackerResponse {
         port = ByteBuffer.wrap(p.drop(4)).getShort & 0xffff
       )).toList
 
-  private def peersList(peers: List[BencodeValue]): List[Peer] = {
-    val res = peers.map {
-      case BencodeDict(p) => Peer(ip = "", port = 0)
+  private def peersList(peers: List[BencodeValue]): List[Peer] =
+    peers.map {
+      case BencodeDict(map) => peerFromMap(map)
       case _ => throw TrackerException("Peers list should contain only dictionary values")
     }
-    res
+
+  private def peerFromMap(map: Map[BencodeString, BencodeValue]): Peer = {
+    val ip = map.get(BencodeString("ip")) match {
+      case Some(BencodeString(value)) => value
+      case _ => throw TrackerException("Field 'ip' should be a string value")
+    }
+    val port = map.get(BencodeString("port")) match {
+      case Some(BencodeInt(value)) => value
+      case _ => throw TrackerException("Field 'port' should be an integer value")
+    }
+    val peerId = map.get(BencodeString("peer id")) match {
+      case Some(BencodeString(value)) => Some(value)
+      case _ => None
+    }
+    Peer(
+      ip = ip,
+      port = port.toInt,
+      peerId = peerId
+    )
   }
 
 }
