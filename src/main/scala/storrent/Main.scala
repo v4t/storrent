@@ -7,6 +7,7 @@ import java.nio.file.{Files, Paths}
 import akka.actor.{ActorSystem, Props}
 import storrent.bencode.BencodeParser
 import storrent.metainfo.{MetaInfo, MetaInfoException}
+import storrent.peerwireprotocol.Handshake
 import storrent.tracker.{FailureResponse, SuccessResponse, TrackerRequest, TrackerResponse}
 
 import scala.io.{Codec, Source}
@@ -65,12 +66,16 @@ object Main {
     val response: HttpResponse[Array[Byte]] = Http(requestUrl).asBytes
 
     val resStr = new String(response.body, StandardCharsets.ISO_8859_1)
-    println(resStr)
+    //println(resStr)
     val res = TrackerResponse.parse(resStr)
-    res match {
-      case SuccessResponse(complete, _, _, _, _, _, _) => println(complete)
-      case FailureResponse(msg) => println(msg)
+    val suc = res match {
+      case r@SuccessResponse(interval, peers, _, _, _, _, _) => r
+      case FailureResponse(msg) => throw new Exception(msg)
     }
+
+
+    val hs = Handshake.serialize(Handshake(infoHash = metaInfo.infoHash, peerId = peerId))
+    println(new String(hs, StandardCharsets.ISO_8859_1))
 
     torrent ! StartDownload("start download")
     system.terminate()

@@ -33,8 +33,7 @@ object TrackerResponse {
     }
   }
 
-  private def populateSuccessResponse(dict: Map[BencodeString, BencodeValue]): SuccessResponse = {
-    println("TODO populate response")
+  private def populateSuccessResponse(dict: Map[BencodeString, BencodeValue]): SuccessResponse =
     SuccessResponse(
       interval = interval(dict),
       peers = peers(dict),
@@ -59,7 +58,7 @@ object TrackerResponse {
         case _ => None
       }
     )
-  }
+
 
   private def interval(dict: Map[BencodeString, BencodeValue]): Long =
     dict.get(BencodeString("interval")) match {
