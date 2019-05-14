@@ -1,17 +1,16 @@
 package storrent
 
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{ActorSystem, Props}
-import storrent.bencode.BencodeParser
-import storrent.metainfo.{MetaInfo, MetaInfoException}
-import storrent.peerwireprotocol.Handshake
-import storrent.tracker.{FailureResponse, SuccessResponse, TrackerRequest, TrackerResponse}
+import akka.pattern.ask
+import akka.util.Timeout
+import storrent.system.TorrentManager
+import storrent.system.TorrentManager.StartDownloadSuccess
 
-import scala.io.{Codec, Source}
-import scala.util.{Failure, Random, Success}
+import scala.concurrent.Future
+import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 object Main {
 
@@ -20,64 +19,24 @@ object Main {
       println("Usage: storrent [torrent file]")
       System.exit(0)
     }
-
     if (!Files.exists(Paths.get(args(0)))) {
       println("Given file does not exist")
       System.exit(0)
     }
     val system = ActorSystem("scala-torrent")
-    val torrent = system.actorOf(Props[STorrent], "STorrent")
+    val manager = system.actorOf(Props(classOf[TorrentManager]), "torrentmanager")
 
-    // Parse torrent file
-    val torrentFile = args(0)
-    val source = Source.fromFile(torrentFile)(Codec.ISO8859)
-    val contents = source.mkString
-    source.close
-    val bencodeValues = BencodeParser.parse(contents)
-
-    // Create metainfo
-    val metaInfo = MetaInfo.fromBencode(bencodeValues) match {
-      case Success(x) => x;
-      case Failure(MetaInfoException(msg)) => throw MetaInfoException("metainfo error " + msg)
-      case Failure(f) => throw f
+    implicit val timeout = Timeout(2.seconds)
+    implicit val ec = system.dispatcher
+    val f: Future[Any] = manager ? StartDownload(args(0))
+    f.onComplete {
+      case Success(msg) => msg match {
+        case StartDownloadSuccess(torrentFile) => {
+          println(s"started download for $torrentFile")
+        }
+      }
+      case Failure(e) => println(e.getMessage)
     }
-
-    // Create tracker request payload
-    val port = 6881
-    val peerId = "-ST-001-" + Random.alphanumeric.take(12).mkString("")
-    val req = TrackerRequest(
-      infoHash = URLEncoder.encode(new String(metaInfo.infoHash, "ISO-8859-1"), "ISO-8859-1"),
-      uploaded = 0,
-      downloaded = 0,
-      left = 0,
-      peerId = URLEncoder.encode(peerId, "ISO-8859-1"),
-      port = port,
-      compact = 1,
-      event = None,
-      numWant = Some(40),
-      ip = None
-    )
-
-    val requestUrl = metaInfo.announceList.head + "?" + TrackerRequest.getQueryString(req)
-        println(requestUrl)
-
-    // Make tracker request
-    import scalaj.http._
-    val response: HttpResponse[Array[Byte]] = Http(requestUrl).asBytes
-
-    val resStr = new String(response.body, StandardCharsets.ISO_8859_1)
-    //println(resStr)
-    val res = TrackerResponse.parse(resStr)
-    val suc = res match {
-      case r@SuccessResponse(interval, peers, _, _, _, _, _) => r
-      case FailureResponse(msg) => throw new Exception(msg)
-    }
-
-
-    val hs = Handshake.serialize(Handshake(infoHash = metaInfo.infoHash, peerId = peerId))
-    println(new String(hs, StandardCharsets.ISO_8859_1))
-
-    torrent ! StartDownload("start download")
     system.terminate()
   }
 
