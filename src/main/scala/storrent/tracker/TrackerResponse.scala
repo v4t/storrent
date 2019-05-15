@@ -1,9 +1,5 @@
 package storrent.tracker
 
-import java.net.InetAddress
-import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets
-
 import storrent.bencode._
 
 sealed trait TrackerResponse
@@ -59,7 +55,6 @@ object TrackerResponse {
       }
     )
 
-
   private def interval(dict: Map[BencodeString, BencodeValue]): Long =
     dict.get(BencodeString("interval")) match {
       case Some(BencodeInt(value)) => value
@@ -68,44 +63,9 @@ object TrackerResponse {
 
   private def peers(dict: Map[BencodeString, BencodeValue]): List[Peer] =
     dict.get(BencodeString("peers")) match {
-      case Some(BencodeList(ls)) => peersList(ls)
-      case Some(BencodeString(str)) => peersString(str)
+      case Some(BencodeList(ls)) => Peer.from(ls)
+      case Some(BencodeString(str)) => Peer.from(str)
       case None => throw TrackerException("Field 'peers' is required")
       case Some(_) => throw TrackerException("Field 'peers' should be a list or a string")
     }
-
-  private def peersString(peers: String): List[Peer] =
-    peers.getBytes(StandardCharsets.ISO_8859_1)
-      .grouped(6)
-      .map(p => Peer(
-        ip = InetAddress.getByAddress(p.take(4)).toString.tail,
-        port = ByteBuffer.wrap(p.drop(4)).getShort & 0xffff
-      )).toList
-
-  private def peersList(peers: List[BencodeValue]): List[Peer] =
-    peers.map {
-      case BencodeDict(map) => peerFromMap(map)
-      case _ => throw TrackerException("Peers list should contain only dictionary values")
-    }
-
-  private def peerFromMap(map: Map[BencodeString, BencodeValue]): Peer = {
-    val ip = map.get(BencodeString("ip")) match {
-      case Some(BencodeString(value)) => value
-      case _ => throw TrackerException("Field 'ip' should be a string value")
-    }
-    val port = map.get(BencodeString("port")) match {
-      case Some(BencodeInt(value)) => value
-      case _ => throw TrackerException("Field 'port' should be an integer value")
-    }
-    val peerId = map.get(BencodeString("peer id")) match {
-      case Some(BencodeString(value)) => Some(value)
-      case _ => None
-    }
-    Peer(
-      ip = ip,
-      port = port.toInt,
-      peerId = peerId
-    )
-  }
-
 }
