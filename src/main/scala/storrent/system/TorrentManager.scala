@@ -26,7 +26,7 @@ object TorrentManager {
 class TorrentManager extends Actor {
 
   val port = 6881
-  val peerId = "-ST-001-" + Random.alphanumeric.take(12).mkString("")
+  val peerId = "ST-001-123456654321" //"-ST-001-" + Random.alphanumeric.take(12).mkString("")
 
   def receive = {
     case StartDownload(file) => {
@@ -57,21 +57,21 @@ class TorrentManager extends Actor {
       )
 
       val requestUrl = metaInfo.announceList.head + "?" + TrackerRequest.getQueryString(req)
-      println(requestUrl)
-
-      // Make tracker request
-      import scalaj.http._
-      val response: HttpResponse[Array[Byte]] = Http(requestUrl).asBytes
-
-      val resStr = new String(response.body, StandardCharsets.ISO_8859_1)
-      //println(resStr)
-      val res = TrackerResponse.parse(resStr)
-      val suc = res match {
-        case r@SuccessResponse(interval, peers, _, _, _, _, _) => r
-        case FailureResponse(msg) => throw new Exception(msg)
-      }
-      val hs = Handshake.serialize(Handshake(infoHash = metaInfo.infoHash, peerId = peerId))
-      println(new String(hs, StandardCharsets.ISO_8859_1))
+//      println("req "+requestUrl)
+//
+//      // Make tracker request
+//      import scalaj.http._
+//      val response: HttpResponse[Array[Byte]] = Http(requestUrl).asBytes
+//
+//      val resStr = new String(response.body, StandardCharsets.ISO_8859_1)
+//      //println(resStr)
+//      val res = TrackerResponse.parse(resStr)
+//      val suc = res match {
+//        case r@SuccessResponse(interval, peers, _, _, _, _, _) => r
+//        case FailureResponse(msg) => throw new Exception(msg)
+//      }
+//      val hs = Handshake.serialize(Handshake(infoHash = metaInfo.infoHash, peerId = peerId))
+//      println("hs " + new String(hs, StandardCharsets.ISO_8859_1))
       sender ! StartDownloadSuccess(file)
     }
     case _ => println("unknown message")

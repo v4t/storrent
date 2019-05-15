@@ -6,7 +6,7 @@ sealed trait TrackerResponse
 
 case class SuccessResponse(
   interval: Long,
-  peers: List[Peer],
+  peers: List[PeerInfo],
   warningMessage: Option[String],
   complete: Option[Long],
   incomplete: Option[Long],
@@ -61,10 +61,10 @@ object TrackerResponse {
       case _ => throw TrackerException("Field 'interval' must be numeric")
     }
 
-  private def peers(dict: Map[BencodeString, BencodeValue]): List[Peer] =
+  private def peers(dict: Map[BencodeString, BencodeValue]): List[PeerInfo] =
     dict.get(BencodeString("peers")) match {
-      case Some(BencodeList(ls)) => Peer.from(ls)
-      case Some(BencodeString(str)) => Peer.from(str)
+      case Some(BencodeList(ls)) => PeerInfo.from(ls)
+      case Some(BencodeString(str)) => PeerInfo.from(str)
       case None => throw TrackerException("Field 'peers' is required")
       case Some(_) => throw TrackerException("Field 'peers' should be a list or a string")
     }

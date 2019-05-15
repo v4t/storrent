@@ -6,28 +6,28 @@ import java.nio.charset.StandardCharsets
 
 import storrent.bencode.{BencodeDict, BencodeInt, BencodeString, BencodeValue}
 
-case class Peer(
+case class PeerInfo(
   ip: String,
   port: Int,
   peerId: Option[String] = None
 )
 
-object Peer {
-  def from(peers: String): List[Peer] =
+object PeerInfo {
+  def from(peers: String): List[PeerInfo] =
     peers.getBytes(StandardCharsets.ISO_8859_1)
       .grouped(6)
-      .map(p => Peer(
+      .map(p => PeerInfo(
         ip = InetAddress.getByAddress(p.take(4)).toString.tail,
         port = ByteBuffer.wrap(p.drop(4)).getShort & 0xffff
       )).toList
 
-  def from(peers: List[BencodeValue]): List[Peer] =
+  def from(peers: List[BencodeValue]): List[PeerInfo] =
     peers.map {
       case BencodeDict(map) => decodePeerDict(map)
       case _ => throw TrackerException("Peers list should contain only dictionary values")
     }
 
-  private def decodePeerDict(map: Map[BencodeString, BencodeValue]): Peer = {
+  private def decodePeerDict(map: Map[BencodeString, BencodeValue]): PeerInfo = {
     val ip = map.get(BencodeString("ip")) match {
       case Some(BencodeString(value)) => value
       case _ => throw TrackerException("Field 'ip' should be a string value")
@@ -40,7 +40,7 @@ object Peer {
       case Some(BencodeString(value)) => Some(value)
       case _ => None
     }
-    Peer(
+    PeerInfo(
       ip = ip,
       port = port.toInt,
       peerId = peerId
