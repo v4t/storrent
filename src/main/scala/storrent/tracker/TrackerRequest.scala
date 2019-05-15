@@ -8,7 +8,7 @@ case class TrackerRequest(
   peerId: String,
   port: Int,
   compact: Int,
-  event: Option[Event],
+  event: Option[TrackerEvent],
   numWant: Option[Int],
   ip: Option[String],
 )
@@ -28,10 +28,10 @@ object TrackerRequest {
       (if (request.ip.isDefined) s"&ip=${request.ip.get}" else "")
   }
 
-  private def eventToStr(event: Event): String = event match {
-    case Started() => "started"
-    case Stopped() => "stopped"
-    case Completed() => "completed"
+  private def eventToStr(event: TrackerEvent): String = event match {
+    case Started => "started"
+    case Stopped => "stopped"
+    case Completed => "completed"
   }
 
 }

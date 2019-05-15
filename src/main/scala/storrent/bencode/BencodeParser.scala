@@ -1,16 +1,17 @@
 package storrent.bencode
 
+import scala.util.Try
 import scala.util.parsing.combinator._
 
 object BencodeParser extends RegexParsers {
 
   override def skipWhitespace: Boolean = false
 
-  def parse(source: String): List[BencodeValue] = {
+  def parse(source: String): Try[List[BencodeValue]] = {
     parseAll(bencode, source) match {
-      case Success(matched, _) => matched
-      case Failure(msg, _) => throw BencodeParseException(msg)
-      case Error(msg, _) => throw BencodeParseException(msg)
+      case Success(matched, _) => scala.util.Success(matched)
+      case Failure(msg, _) => scala.util.Failure(BencodeParseException(msg))
+      case Error(msg, _) => scala.util.Failure(BencodeParseException(msg))
     }
   }
 

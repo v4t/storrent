@@ -2,6 +2,8 @@ package storrent.tracker
 
 import storrent.bencode._
 
+import scala.util.Success
+
 sealed trait TrackerResponse
 
 case class SuccessResponse(
@@ -19,13 +21,9 @@ case class FailureResponse(failureReason: String) extends TrackerResponse
 object TrackerResponse {
 
   def parse(body: String): TrackerResponse = {
-    try {
-      BencodeParser.parse(body) match {
-        case List(BencodeDict(map)) => populateSuccessResponse(map)
-        case _ => FailureResponse("Invalid format: " + body)
-      }
-    } catch {
-      case BencodeParseException(_) => FailureResponse("Request failed: " + body)
+    BencodeParser.parse(body) match {
+      case Success(List(BencodeDict(map))) => populateSuccessResponse(map)
+      case _ => FailureResponse("Invalid format: " + body)
     }
   }
 
