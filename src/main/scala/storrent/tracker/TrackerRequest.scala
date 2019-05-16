@@ -1,6 +1,7 @@
 package storrent.tracker
 
 case class TrackerRequest(
+  baseUrl: String,
   infoHash: String,
   uploaded: Long,
   downloaded: Long,
@@ -15,8 +16,9 @@ case class TrackerRequest(
 
 object TrackerRequest {
 
-  def getQueryString(request: TrackerRequest): String = {
-    s"info_hash=${request.infoHash}&" +
+  def getQueryString(request: TrackerRequest): String =
+    request.baseUrl + "?" +
+      s"info_hash=${request.infoHash}&" +
       s"peer_id=${request.peerId}&" +
       s"uploaded=${request.uploaded}&" +
       s"downloaded=${request.downloaded}&" +
@@ -26,7 +28,7 @@ object TrackerRequest {
       (if (request.event.isDefined) s"&event=${eventToStr(request.event.get)}" else "") +
       (if (request.numWant.isDefined) s"&numwant=${request.numWant.get}" else "") +
       (if (request.ip.isDefined) s"&ip=${request.ip.get}" else "")
-  }
+
 
   private def eventToStr(event: TrackerEvent): String = event match {
     case Started => "started"

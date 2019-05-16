@@ -1,12 +1,10 @@
 package storrent.system
 
 import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
-import akka.actor.Actor
+import akka.actor.{Actor, Props}
 import storrent.bencode.{BencodeParser, BencodeValue}
 import storrent.metainfo.MetaInfo
-import storrent.peers.Handshake
 import storrent.system.TorrentManager.{StartDownload, StartDownloadSuccess}
 import storrent.tracker._
 
@@ -25,6 +23,8 @@ object TorrentManager {
 
 class TorrentManager extends Actor {
 
+  import storrent.system.Tracker._
+
   val port = 6881
   val peerId = "-ST-001-123456654321" //"-ST-001-" + Random.alphanumeric.take(12).mkString("")
 
@@ -40,25 +40,13 @@ class TorrentManager extends Actor {
         tr <- Try(populateTrackerRequest(info, Started))
       } yield tr
 
-
-      val req = y.get
-
-      val requestUrl = metaInfo.announceList.head + "?" + TrackerRequest.getQueryString(req)
-
-      // Make tracker request
-      import scalaj.http._
-      val response: HttpResponse[Array[Byte]] = Http(requestUrl).asBytes
-      val resStr = new String(response.body, StandardCharsets.ISO_8859_1)
-
-      val res = TrackerResponse.parse(resStr)
-      val suc = res match {
-        case r@SuccessResponse(interval, peers, _, _, _, _, _) => r
-        case FailureResponse(msg) => println(msg) //throw new Exception(msg)
-      }
-      val hs = Handshake.serialize(Handshake(infoHash = metaInfo.infoHash, peerId = peerId))
-      println("hs " + new String(hs, StandardCharsets.ISO_8859_1))
+      val requestUrl = TrackerRequest.getQueryString(y.get)
+      val tracker = context.actorOf(Props(classOf[Tracker]), "tracker")
+      tracker ! SendTrackerRequest(requestUrl)
       sender ! StartDownloadSuccess(file)
     }
+    case TrackerRequestFailure(_) => println("tracker failed")
+    case TrackerRequestSuccess(_) => println("tracker success")
     case _ => println("unknown message")
   }
 
@@ -77,6 +65,7 @@ class TorrentManager extends Actor {
 
   private def populateTrackerRequest(metaInfo: MetaInfo, event: TrackerEvent): TrackerRequest =
     TrackerRequest(
+      baseUrl = metaInfo.announceList.head,
       infoHash = URLEncoder.encode(new String(metaInfo.infoHash, "ISO-8859-1"), "ISO-8859-1"),
       uploaded = 0,
       downloaded = 0,

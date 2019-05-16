@@ -6,10 +6,8 @@ import akka.actor.{ActorSystem, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import storrent.system.TorrentManager
-import storrent.system.TorrentManager
 import storrent.system.TorrentManager.StartDownloadSuccess
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
@@ -29,7 +27,7 @@ object Main {
 
     implicit val timeout = Timeout(10.seconds)
     implicit val ec = system.dispatcher
-    val f: Future[Any] = manager ? TorrentManager.StartDownload(args(0))
+    val f = manager ? TorrentManager.StartDownload(args(0))
     f.onComplete {
       case Success(msg) => msg match {
         case StartDownloadSuccess(torrentFile) => {
@@ -38,6 +36,8 @@ object Main {
       }
       case Failure(e) => println(e.getMessage)
     }
+
+    Thread.sleep(5000)
     system.terminate()
   }
 
