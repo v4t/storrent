@@ -22,12 +22,24 @@ object TrackerResponse {
 
   def parse(body: String): TrackerResponse = {
     BencodeParser.parse(body) match {
-      case Success(List(BencodeDict(map))) => populateSuccessResponse(map)
+      case Success(List(BencodeDict(map))) => parseResponse(map)
       case _ => FailureResponse("Invalid format: " + body)
     }
   }
 
-  private def populateSuccessResponse(dict: Map[BencodeString, BencodeValue]): SuccessResponse =
+  private def parseResponse(dict: Map[BencodeString, BencodeValue]): TrackerResponse = {
+    if (dict.contains(BencodeString("failure reason"))) parseFailureResponse(dict)
+    else parseSuccessResponse(dict)
+  }
+
+  private def parseFailureResponse(dict: Map[BencodeString, BencodeValue]): FailureResponse = {
+    dict.get(BencodeString("failure reason")) match {
+      case Some(BencodeString(reason)) => FailureResponse(reason)
+      case _ => throw TrackerException("Field 'failure reason' must be a string")
+    }
+  }
+
+  private def parseSuccessResponse(dict: Map[BencodeString, BencodeValue]): SuccessResponse =
     SuccessResponse(
       interval = interval(dict),
       peers = peers(dict),
