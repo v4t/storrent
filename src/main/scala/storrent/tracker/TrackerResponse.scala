@@ -23,7 +23,7 @@ object TrackerResponse {
   def parse(body: String): TrackerResponse = {
     BencodeParser.parse(body) match {
       case Success(List(BencodeDict(map))) => parseResponse(map)
-      case _ => FailureResponse("Invalid format: " + body)
+      case _ => FailureResponse("Tracker response with invalid format: " + body)
     }
   }
 
