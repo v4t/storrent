@@ -21,7 +21,7 @@ class Tracker(port: Int) extends Actor {
       val response: HttpResponse[Array[Byte]] = Http(query).asBytes
       val resStr = new String(response.body, StandardCharsets.ISO_8859_1)
 
-      println("Received response from tracker " + resStr)
+      println("Received response from tracker")
       TrackerResponse.parse(resStr) match {
         case sr:SuccessResponse => sender() ! UpdatePeers(sr.peers)
         case FailureResponse(msg) => println("Tracker request failed: " + msg)

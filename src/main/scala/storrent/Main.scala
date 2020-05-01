@@ -41,7 +41,7 @@ object Main {
     val client = system.actorOf(Props(classOf[Client], metaInfo, system), "client")
     client ! "start"
 
-    Thread.sleep(10000)
+    Thread.sleep(20000)
     client ! "stop"
     //    system.terminate()
   }

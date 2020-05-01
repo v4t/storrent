@@ -11,9 +11,9 @@ object Handshake {
   def serialize(handshake: Handshake): Array[Byte] = {
     val protocolStr = "BitTorrent protocol".getBytes(StandardCharsets.ISO_8859_1)
     val protocolStrLen = Array[Byte](protocolStr.length.toByte)
-    val reserved = Array.fill[Byte](0)(8)
+    val reserved = Array.fill[Byte](8)(0)
     val peerId = handshake.peerId.getBytes(StandardCharsets.ISO_8859_1)
-    Array.concat(protocolStr, protocolStrLen, reserved, handshake.infoHash, peerId)
+    Array.concat(protocolStrLen, protocolStr, reserved, handshake.infoHash, peerId)
   }
 
   def deserialize(payload: Array[Byte]): Try[Handshake] = {

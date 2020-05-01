@@ -25,6 +25,7 @@ class ConnectionListener(localAddress: InetSocketAddress, actorSystem: ActorSyst
       println("Received connection from " + remote.toString)
 
     case Received(data) =>
-      println(data.toString())
+      println("received data")
+      println(data.decodeString("ISO-8859-1"))
   }
 }
