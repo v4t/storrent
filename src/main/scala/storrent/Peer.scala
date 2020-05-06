@@ -16,8 +16,7 @@ class Peer(peer: PeerInfo, client: ActorRef) extends Actor {
   import Tcp._
   import context.system
 
-  val remote = new InetSocketAddress("169.254.57.70", 6881)
-  //  val remote = new InetSocketAddress(peer.ip, peer.port)
+  val remote = new InetSocketAddress(peer.ip, peer.port)
 
   var handshakeCompleted = false
 
@@ -38,7 +37,7 @@ class Peer(peer: PeerInfo, client: ActorRef) extends Actor {
       context.become {
         case hs: Handshake =>
           println("sending handshake to peer " + peer.ip)
-          connection ! Write(ByteString(Handshake.serialize(hs)))
+          connection ! Write(ByteString(Handshake.encode(hs.infoHash, hs.peerId)))
 
         case CommandFailed(w: Write) =>
           client ! "write failed"
@@ -66,12 +65,12 @@ class Peer(peer: PeerInfo, client: ActorRef) extends Actor {
   }
 
   private def handleHandshake(data: ByteString) = {
-    Handshake.deserialize(data.toArray) match {
-      case Success(value) =>
+    Handshake.decode(data.toArray) match {
+      case Some(value) =>
         println(value)
         handshakeCompleted = true
-      case Failure(exception) =>
-        println(exception.getMessage)
+      case _ =>
+        println("failed to decode handshake")
         self ! "close"
     }
   }
