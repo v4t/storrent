@@ -20,7 +20,7 @@ object Have {
   }
 
   def decode(bytes: Array[Byte]): Option[Have] = {
-    if (bytes.length != 9 || bytes(4) != messageId || bytes.slice(0, 4)(4) == lengthPrefix) None
+    if (bytes.length != 9 || bytes(4) != messageId || bytes.slice(0, 4).last != lengthPrefix) None
     else {
       val index = ByteBuffer.wrap(bytes.slice(5,9)).getInt
       Some(Have(index))

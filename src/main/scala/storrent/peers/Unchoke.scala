@@ -19,7 +19,7 @@ object Unchoke {
   }
 
   def decode(bytes: Array[Byte]): Option[Unchoke] = {
-    if (bytes.length != 5 || bytes(4) != messageId || ByteBuffer.wrap(bytes.slice(0, 4)).getInt == lengthPrefix) None
+    if (bytes.length != 5 || bytes(4) != messageId || ByteBuffer.wrap(bytes.slice(0, 4)).getInt != lengthPrefix) None
     else Some(Unchoke())
   }
 }

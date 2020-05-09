@@ -10,6 +10,7 @@ import storrent.tracker.{PeerInfo, Started}
 import scala.collection.mutable
 
 case class UpdatePeers(peers: List[PeerInfo])
+
 case class PeerConnected(peer: PeerInfo, actor: ActorRef)
 
 class Client(metaInfo: MetaInfo, system: ActorSystem) extends Actor {
@@ -29,7 +30,7 @@ class Client(metaInfo: MetaInfo, system: ActorSystem) extends Actor {
 
   def receive: Receive = {
     case "stop" =>
-      println("stopped " +  localId)
+      println("stopped " + localId)
       system.terminate()
 
     case "start" =>
@@ -39,10 +40,14 @@ class Client(metaInfo: MetaInfo, system: ActorSystem) extends Actor {
     case UpdatePeers(peerList) =>
       println("updatepeers " + peerList)
       val p = peerList.tail.head
-      val peerActor = context.actorOf(
-        Props(classOf[Peer], p, self),
+      //      val peerActor = context.actorOf(
+      //        Props(classOf[Peer], p, metaInfo, localId, self),
+      //        "peer:" + p.ip + ":" + p.port
+      //      )
+      peerList.foreach(p => context.actorOf(
+        Props(classOf[Peer], p, metaInfo, localId, self),
         "peer:" + p.ip + ":" + p.port
-      )
+      ))
 
     case PeerConnected(peer, actor) =>
       println("peerconnected")

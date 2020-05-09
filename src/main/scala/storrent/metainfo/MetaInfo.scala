@@ -7,14 +7,18 @@ import storrent.bencode._
 import scala.util.Try
 
 case class MetaInfo(
-  info: MetaInfoDictionary,
+  info: InfoDictionary,
   infoHash: Array[Byte],
   announceList: Set[String],
   creationDate: Option[Long],
   comment: Option[String],
   createdBy: Option[String],
   encoding: Option[String]
-)
+) {
+  lazy val totalLength = info.files.foldLeft(0.toLong)((acc, f) => acc + f.length)
+  lazy val pieceCount = (((info.pieces.length / 20) + 7) / 8) * 8
+
+}
 
 object MetaInfo {
 
@@ -32,7 +36,7 @@ object MetaInfo {
       case None => throw MetaInfoException("Field 'info' is required")
     }
     MetaInfo(
-      info = MetaInfoDictionary.fromBencode(info.dict),
+      info = InfoDictionary.fromBencode(info.dict),
       infoHash = calculateInfoHash(info),
       announceList = announce(dict),
       creationDate = creationDate(dict),

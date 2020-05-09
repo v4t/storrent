@@ -22,7 +22,7 @@ object Request {
   }
 
   def decode(bytes: Array[Byte]): Option[Request] = {
-    if (bytes.length != 17 || bytes(4) != messageId || bytes.slice(0, 4)(4) == lengthPrefix) None
+    if (bytes.length != 17 || bytes(4) != messageId || bytes.slice(0, 4).last != lengthPrefix) None
     else {
       val index = ByteBuffer.wrap(bytes.slice(5,9)).getInt
       val begin = ByteBuffer.wrap(bytes.slice(9,13)).getInt

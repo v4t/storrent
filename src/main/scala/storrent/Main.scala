@@ -1,5 +1,6 @@
 package storrent
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.TimeUnit
 
@@ -9,6 +10,7 @@ import akka.util.Timeout
 import storrent.bencode.{BencodeParser, BencodeValue}
 import storrent.metainfo.MetaInfo
 
+import scala.concurrent.ExecutionContextExecutor
 import scala.io.{Codec, Source}
 import scala.util.{Failure, Try}
 
@@ -35,15 +37,15 @@ object Main {
 
     val system = ActorSystem("scala-torrent")
 
-    implicit val timeout = Timeout(10, TimeUnit.SECONDS)
-    implicit val ec = system.dispatcher
+    implicit val timeout: Timeout = Timeout(10, TimeUnit.SECONDS)
+    implicit val ec: ExecutionContextExecutor = system.dispatcher
 
     val client = system.actorOf(Props(classOf[Client], metaInfo, system), "client")
     client ! "start"
 
     Thread.sleep(20000)
     client ! "stop"
-    //    system.terminate()
+//        /*system.terminate()*/
   }
 
   private def parseSource(filePath: String): Try[List[BencodeValue]] = {

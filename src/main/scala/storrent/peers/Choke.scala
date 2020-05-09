@@ -19,7 +19,7 @@ object Choke {
   }
 
   def decode(bytes: Array[Byte]): Option[Choke] = {
-    if (bytes.length != 5 || bytes(4) != messageId || bytes.slice(0, 4)(4) == lengthPrefix) None
+    if (bytes.length != 5 || bytes(4) != messageId || bytes.slice(0, 4).last != lengthPrefix) None
     else Some(Choke())
   }
 }

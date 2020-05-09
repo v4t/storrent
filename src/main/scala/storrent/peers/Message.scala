@@ -20,6 +20,7 @@ object Message {
       case MessageId.REQUEST => Request.decode(payload)
       case MessageId.PIECE => Piece.decode(payload)
       case MessageId.CANCEL => Cancel.decode(payload)
+      case MessageId.PORT => Port.decode(payload)
       case _ => None
     }
   }
@@ -37,4 +38,5 @@ object MessageId {
   val REQUEST: Byte = 6
   val PIECE: Byte = 7
   val CANCEL: Byte = 8
+  val PORT: Byte = 9
 }

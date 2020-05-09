@@ -2,7 +2,7 @@ package storrent.metainfo
 
 import storrent.bencode.{BencodeInt, BencodeString, BencodeValue}
 
-case class MetaInfoDictionary(
+case class InfoDictionary(
   pieceLength: Long,
   pieces: String,
   noExternalPeerSource: Option[Long],
@@ -10,10 +10,10 @@ case class MetaInfoDictionary(
   files: List[FileInfo]
 )
 
-object MetaInfoDictionary {
+object InfoDictionary {
 
-  def fromBencode(bencodeDict: Map[BencodeString, BencodeValue]): MetaInfoDictionary =
-    MetaInfoDictionary(
+  def fromBencode(bencodeDict: Map[BencodeString, BencodeValue]): InfoDictionary =
+    InfoDictionary(
       pieceLength = pieceLength(bencodeDict),
       pieces = pieces(bencodeDict),
       noExternalPeerSource = noExternalPeerSource(bencodeDict),

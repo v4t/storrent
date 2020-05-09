@@ -35,7 +35,7 @@ class Tracker(port: Int) extends Actor {
       infoHash = URLEncoder.encode(new String(metaInfo.infoHash, "ISO-8859-1"), "ISO-8859-1"),
       uploaded = 0,
       downloaded = 0,
-      left = 0,
+      left = metaInfo.totalLength,
       peerId = URLEncoder.encode(localId, "ISO-8859-1"),
       port = port,
       compact = 1,
