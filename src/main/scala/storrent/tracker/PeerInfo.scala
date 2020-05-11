@@ -6,10 +6,12 @@ import java.nio.charset.StandardCharsets
 
 import storrent.bencode.{BencodeDict, BencodeInt, BencodeString, BencodeValue}
 
+import scala.util.Random
+
 case class PeerInfo(
   ip: String,
   port: Int,
-  peerId: Option[String] = None
+  peerId: String
 )
 
 object PeerInfo {
@@ -18,8 +20,9 @@ object PeerInfo {
       .grouped(6)
       .map(p => PeerInfo(
         ip = InetAddress.getByAddress(p.take(4)).toString.tail,
-        port = ByteBuffer.wrap(p.drop(4)).getShort & 0xffff
-      )).toList
+        port = ByteBuffer.wrap(p.drop(4)).getShort & 0xffff,
+        Random.alphanumeric.take(20).mkString("")
+      )).toList.distinct
 
   def from(peers: List[BencodeValue]): List[PeerInfo] =
     peers.map {
@@ -37,8 +40,8 @@ object PeerInfo {
       case _ => throw TrackerException("Field 'port' should be an integer value")
     }
     val peerId = map.get(BencodeString("peer id")) match {
-      case Some(BencodeString(value)) => Some(value)
-      case _ => None
+      case Some(BencodeString(value)) => value
+      case _ => throw TrackerException("Field 'peer id' should be an string value")
     }
     PeerInfo(
       ip = ip,

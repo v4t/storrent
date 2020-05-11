@@ -4,19 +4,25 @@ import java.net.InetSocketAddress
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import storrent.metainfo.MetaInfo
-import storrent.peers.Handshake
 import storrent.tracker.{PeerInfo, Started}
 
 import scala.collection.mutable
+import scala.util.Random
 
 case class UpdatePeers(peers: List[PeerInfo])
-
 case class PeerConnected(peer: PeerInfo, actor: ActorRef)
+case class PeerDisconnected(peerId: String)
 
 class Client(metaInfo: MetaInfo, system: ActorSystem) extends Actor {
-  private val localId = "19510014123456654321"
+  private val localId = Random.alphanumeric.take(20).mkString("")
   private val port = 55555
-  private val peers = mutable.Set[PeerInfo]()
+  private val peers = mutable.Map[String, PeerInfo]()
+
+  private var downloadComplete = false
+  private var downloadedPieces: Array[Boolean] = new Array(metaInfo.pieceCount)
+
+  private var currentPiece: Int = 0
+  private var currentBlocks: Vector[Array[Byte]] = Vector[Array[Byte]]()
 
   private val listener = context.actorOf(
     Props(classOf[ConnectionListener], new InetSocketAddress(port), system),
@@ -34,27 +40,24 @@ class Client(metaInfo: MetaInfo, system: ActorSystem) extends Actor {
       system.terminate()
 
     case "start" =>
-      println("updatetracker")
+      println("update tracker")
       tracker ! Update(metaInfo, Started)
 
     case UpdatePeers(peerList) =>
-      println("updatepeers " + peerList)
-      val p = peerList.tail.head
-      //      val peerActor = context.actorOf(
-      //        Props(classOf[Peer], p, metaInfo, localId, self),
-      //        "peer:" + p.ip + ":" + p.port
-      //      )
+      println("update peers " + peerList)
       peerList.foreach(p => context.actorOf(
         Props(classOf[Peer], p, metaInfo, localId, self),
-        "peer:" + p.ip + ":" + p.port
+        p.peerId
       ))
 
     case PeerConnected(peer, actor) =>
-      println("peerconnected")
-      actor ! Handshake(metaInfo.infoHash, localId)
+      println("peer connected")
+      if(!peers.isDefinedAt(peer.peerId)) peers.put(peer.peerId, peer)
+
+    case PeerDisconnected(peerId) =>
+      println("peer disconnected")
+      if(peers.isDefinedAt(peerId)) peers.remove(peerId)
   }
 
-  def sendHandshake(peerInfo: PeerInfo) = {
-
-  }
+  private def nextPiece() : Int = downloadedPieces.indexOf(false)
 }

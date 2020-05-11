@@ -12,13 +12,13 @@ import storrent.metainfo.MetaInfo
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.{Codec, Source}
-import scala.util.{Failure, Try}
+import scala.util.{Failure, Random, Try}
 
 
 object Main {
 
-  val port = 6881
-  val peerId = "-ST-001-123456654321" //"-ST-001-" + Random.alphanumeric.take(12).mkString("")
+//  val port = 55555
+//  val peerId = Random.alphanumeric.take(20).mkString("")
 
   def main(args: Array[String]) {
     if (args.isEmpty) {
@@ -43,7 +43,7 @@ object Main {
     val client = system.actorOf(Props(classOf[Client], metaInfo, system), "client")
     client ! "start"
 
-    Thread.sleep(20000)
+    Thread.sleep(30000)
     client ! "stop"
 //        /*system.terminate()*/
   }
