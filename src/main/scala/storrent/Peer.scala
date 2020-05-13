@@ -5,13 +5,13 @@ import java.net.InetSocketAddress
 import akka.actor.{Actor, ActorRef, ReceiveTimeout}
 import akka.io.{IO, Tcp}
 import akka.util.ByteString
-import storrent.metainfo.MetaInfo
+import storrent.metainfo.Torrent
 import storrent.peers._
 import storrent.tracker.PeerInfo
 
 import scala.concurrent.duration._
 
-class Peer(peer: PeerInfo, metaInfo: MetaInfo, localId: String, client: ActorRef) extends Actor {
+class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) extends Actor {
 
   import Tcp._
   import context.system
@@ -24,7 +24,7 @@ class Peer(peer: PeerInfo, metaInfo: MetaInfo, localId: String, client: ActorRef
   var interested = false
   var peerInterested = false
 
-  var peerBitfield: Array[Boolean] = new Array(metaInfo.pieceCount)
+  var peerBitfield: Array[Boolean] = new Array(torrent.pieceCount)
 
   IO(Tcp) ! Connect(remote, timeout = Some(30.seconds))
 
@@ -36,13 +36,13 @@ class Peer(peer: PeerInfo, metaInfo: MetaInfo, localId: String, client: ActorRef
     case c@Connected(remote, local) =>
       val connection = sender()
       connection ! Register(self)
-      connection ! Write(ByteString(Handshake.encode(metaInfo.infoHash, localId)))
+      connection ! Write(ByteString(Handshake.encode(torrent.metaInfo.infoHash, localId)))
       context.become(waitingHandshake(connection))
   }
 
   def waitingHandshake(connection: ActorRef): Receive = {
     case Received(data) =>
-      if(Handshake.decode(data.toArray).isEmpty) {
+      if (Handshake.decode(data.toArray).isEmpty) {
         println("Failed to decode handshake")
         self ! "close"
       } else {
@@ -65,7 +65,7 @@ class Peer(peer: PeerInfo, metaInfo: MetaInfo, localId: String, client: ActorRef
     case "request" =>
       val index = 0
       if (!peerChoking && peerBitfield(index)) {
-        val bytes = Request.encode(0,0,0)
+        val bytes = Request.encode(0, 0, 0)
         connection ! Write(ByteString(bytes))
       }
 
@@ -80,7 +80,9 @@ class Peer(peer: PeerInfo, metaInfo: MetaInfo, localId: String, client: ActorRef
 
   private def handleReceivedData(data: ByteString): Unit = {
     val msg = Message.decode(data.toArray);
-    if (msg.isEmpty) println("Received unknown message of " + data.length + " bytes.")
+    if (msg.isEmpty) {
+      println("Received unknown message of " + data.length + " bytes. Message id: " + (data(4) & 0xff))
+    }
     else msg.get match {
       case KeepAlive() => handleKeepAlive()
       case Choke() => handleChoke()
@@ -121,11 +123,13 @@ class Peer(peer: PeerInfo, metaInfo: MetaInfo, localId: String, client: ActorRef
   }
 
   private def handleBitfield(bitfield: Array[Boolean]): Unit = {
-    if (bitfield.length != peerBitfield.length) {
-      println("Received bitfield with invalid length")
+    // Fail if bitfield is not of the correct size, or if the bitfield has any of the spare bits set.
+    if (bitfield.length != peerBitfield.length && bitfield.drop(torrent.pieceCount).contains(true)) {
+      println("Received invalid bitfield")
       self ! "close"
     } else {
-      for (i <- bitfield.indices) peerBitfield(i) = bitfield(i)
+      println(bitfield.drop(torrent.pieceCount).mkString(","))
+      for (i <- 0 until torrent.pieceCount) peerBitfield(i) = bitfield(i)
     }
   }
 

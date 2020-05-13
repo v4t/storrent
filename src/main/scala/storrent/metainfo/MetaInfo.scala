@@ -6,6 +6,7 @@ import storrent.bencode._
 
 import scala.util.Try
 
+
 case class MetaInfo(
   info: InfoDictionary,
   infoHash: Array[Byte],
@@ -14,14 +15,9 @@ case class MetaInfo(
   comment: Option[String],
   createdBy: Option[String],
   encoding: Option[String]
-) {
-  lazy val totalLength = info.files.foldLeft(0.toLong)((acc, f) => acc + f.length)
-  lazy val pieceCount = (((info.pieces.length / 20) + 7) / 8) * 8
-
-}
+)
 
 object MetaInfo {
-
   def fromBencode(bencodeValues: List[BencodeValue]): Try[MetaInfo] = Try(parseMetaInfo(bencodeValues))
 
   private def parseMetaInfo(bencodeValues: List[BencodeValue]): MetaInfo = {

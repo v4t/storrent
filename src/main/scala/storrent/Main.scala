@@ -8,11 +8,11 @@ import akka.actor.{ActorSystem, Props}
 
 import akka.util.Timeout
 import storrent.bencode.{BencodeParser, BencodeValue}
-import storrent.metainfo.MetaInfo
+import storrent.metainfo.{MetaInfo, Torrent}
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.{Codec, Source}
-import scala.util.{Failure, Random, Try}
+import scala.util.{Failure, Try}
 
 
 object Main {
@@ -32,20 +32,21 @@ object Main {
 
     val file = args(0)
     val name = file.split('/').last.replace(".torrent", "")
-    val bencodeValues = parseSource(file).get
-    val metaInfo = MetaInfo.fromBencode(bencodeValues).get
+    val torrent = Torrent.fromFile(file).get
+//    val bencodeValues = parseSource(file).get
+//    val metaInfo = MetaInfo.fromBencode(bencodeValues).get
 
     val system = ActorSystem("scala-torrent")
 
     implicit val timeout: Timeout = Timeout(10, TimeUnit.SECONDS)
     implicit val ec: ExecutionContextExecutor = system.dispatcher
 
-    val client = system.actorOf(Props(classOf[Client], metaInfo, system), "client")
+    val client = system.actorOf(Props(classOf[Client], torrent, system), "client")
     client ! "start"
 
     Thread.sleep(30000)
     client ! "stop"
-//        /*system.terminate()*/
+        /*system.terminate()*/
   }
 
   private def parseSource(filePath: String): Try[List[BencodeValue]] = {

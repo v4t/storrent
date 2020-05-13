@@ -12,10 +12,15 @@ object Bitfield {
   val lengthPrefix: Int = 1
 
   def encode(downloadedPieces: Array[Boolean]): Array[Byte] = {
-    val len = lengthPrefix + downloadedPieces.length
-    val bitfieldAsBytes = downloadedPieces.sliding(8, 8).map(i => bitsToByte(i)).toArray
+    val bitfieldByteCount = (downloadedPieces.length + 7) & (-8) // Round up to nearest multiple of 8
+    val len = lengthPrefix + bitfieldByteCount
+    val bitfieldAsBytes = downloadedPieces
+      .padTo(bitfieldByteCount, false)
+      .sliding(8, 8)
+      .map(i => bitsToByte(i))
+      .toArray
     val bsb = new ByteStringBuilder()
-    bsb.putInt(lengthPrefix)
+    bsb.putInt(len)
     bsb.putByte(messageId)
     bsb.putBytes(bitfieldAsBytes)
     bsb.result().toArray
