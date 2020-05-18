@@ -3,9 +3,9 @@ package storrent.metainfo
 import storrent.bencode.{BencodeInt, BencodeString, BencodeValue}
 
 case class InfoDictionary(
-  pieceLength: Long,
+  pieceLength: Int,
   pieces: String,
-  noExternalPeerSource: Option[Long],
+  noExternalPeerSource: Option[Int],
   name: String,
   files: List[FileInfo]
 )
@@ -21,9 +21,9 @@ object InfoDictionary {
       files = FileInfo.fromBencode(bencodeDict)
     )
 
-  private def pieceLength(dict: Map[BencodeString, BencodeValue]): Long =
+  private def pieceLength(dict: Map[BencodeString, BencodeValue]): Int =
     dict.get(BencodeString("piece length")) match {
-      case Some(BencodeInt(value)) => value
+      case Some(BencodeInt(value)) => value.toInt
       case Some(_) => throw MetaInfoException("Field 'piece length' expects an integer value")
       case None => throw MetaInfoException("Field 'piece length' is required")
     }
@@ -35,9 +35,9 @@ object InfoDictionary {
       case None => throw MetaInfoException("Field 'pieces' is required")
     }
 
-  private def noExternalPeerSource(dict: Map[BencodeString, BencodeValue]): Option[Long] =
+  private def noExternalPeerSource(dict: Map[BencodeString, BencodeValue]): Option[Int] =
     dict.get(BencodeString("private")) match {
-      case Some(BencodeInt(value)) => Some(value)
+      case Some(BencodeInt(value)) => Some(value.toInt)
       case _ => None
     }
 

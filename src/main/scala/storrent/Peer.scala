@@ -36,18 +36,19 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     case c@Connected(remote, local) =>
       val connection = sender()
       connection ! Register(self)
-      connection ! Write(ByteString(Handshake.encode(torrent.metaInfo.infoHash, localId)))
       context.become(waitingHandshake(connection))
+      connection ! Write(ByteString(Handshake.encode(torrent.metaInfo.infoHash, localId)))
   }
 
   def waitingHandshake(connection: ActorRef): Receive = {
     case Received(data) =>
       if (Handshake.decode(data.toArray).isEmpty) {
-        println("Failed to decode handshake")
+        println(peer.peerId + ": Failed to decode handshake")
         self ! "close"
       } else {
-        client ! PeerConnected(peer, self)
         context.become(active(connection))
+        client ! PeerConnected(peer, self)
+        connection ! Interested.encode()
       }
 
     case "close" => connection ! Close
@@ -62,26 +63,29 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     case Received(data) =>
       handleReceivedData(data)
 
-    case "request" =>
-      val index = 0
+    case Request(index, begin, length) =>
       if (!peerChoking && peerBitfield(index)) {
-        val bytes = Request.encode(0, 0, 0)
+        val bytes = Request.encode(index, begin, length)
         connection ! Write(ByteString(bytes))
+        println(peer.peerId + ": Requested block " + index)
+      } else {
+        println(peer.peerId + ": Failed to request block. choke: " + peerChoking + " & bf: " + peerBitfield(index))
+        sender ! RequestFailed(index, peer)
       }
 
     case "close" =>
-      println("close connection")
+      println(peer.peerId + ": close connection")
       connection ! Close
 
     case _: ConnectionClosed =>
-      client ! PeerDisconnected(peer.peerId)
+      client ! PeerDisconnected(peer)
       context.stop(self)
   }
 
   private def handleReceivedData(data: ByteString): Unit = {
     val msg = Message.decode(data.toArray);
     if (msg.isEmpty) {
-      println("Received unknown message of " + data.length + " bytes. Message id: " + (data(4) & 0xff))
+      println(peer.peerId + ": Received unknown message of " + data.length + " bytes. Message id: " + (data(4) & 0xff))
     }
     else msg.get match {
       case KeepAlive() => handleKeepAlive()
@@ -92,60 +96,65 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       case Have(index) => handleHave(index)
       case Bitfield(dp) => handleBitfield(dp)
       case Request(index, begin, length) => handleRequest(index, begin, length)
-      case Piece(index, begin, block) => handlePiece(index, begin, block)
+      case piece@Piece(_, _, _) => handlePiece(piece)
       case Cancel(index, begin, length) => handleCancel(index, begin, length)
       case Port(listenPort) => handlePort(listenPort)
     }
   }
 
   private def handleKeepAlive(): Unit = {
-    println("Received keepalive")
+    println(peer.peerId + ": Received keepalive")
   }
 
   private def handleChoke(): Unit = {
+    println(peer.peerId + ": Received choke")
     peerChoking = true
   }
 
   private def handleUnchoke(): Unit = {
+    println(peer.peerId + ": Received unchoke" + " " + peerBitfield(0))
     peerChoking = false
   }
 
   private def handleInterested(): Unit = {
+    println(peer.peerId + ": Received interested")
     peerInterested = true
   }
 
   private def handleNotInterested(): Unit = {
+    println(peer.peerId + ": Received not interested")
     peerInterested = false
   }
 
   private def handleHave(index: Int): Unit = {
+    println(peer.peerId + ": Received have")
     if (peerBitfield.isDefinedAt(index)) peerBitfield(index) = true
   }
 
   private def handleBitfield(bitfield: Array[Boolean]): Unit = {
     // Fail if bitfield is not of the correct size, or if the bitfield has any of the spare bits set.
     if (bitfield.length != peerBitfield.length && bitfield.drop(torrent.pieceCount).contains(true)) {
-      println("Received invalid bitfield")
+      println(peer.peerId + ": Received invalid bitfield")
       self ! "close"
     } else {
-      println(bitfield.drop(torrent.pieceCount).mkString(","))
       for (i <- 0 until torrent.pieceCount) peerBitfield(i) = bitfield(i)
     }
   }
 
   private def handleRequest(index: Int, begin: Int, length: Int): Unit = {
-    println("Received request")
+    println(peer.peerId + ": Received request")
   }
 
-  private def handlePiece(index: Int, begin: Int, block: Array[Byte]): Unit = {
-    println("Received piece")
+  private def handlePiece(piece: Piece): Unit = {
+    println(peer.peerId + ": Received piece " + piece.index)
+    client ! piece
   }
 
   private def handleCancel(index: Int, begin: Int, length: Int): Unit = {
-    println("Received cancel")
+    println(peer.peerId + ": Received cancel")
   }
 
   private def handlePort(listenPort: Int): Unit = {
-    println("Received port")
+    println(peer.peerId + ": Received port")
   }
 }
