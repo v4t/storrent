@@ -16,24 +16,22 @@ case class PeerConnected(peer: PeerInfo, actor: ActorRef)
 
 case class PeerDisconnected(peer: PeerInfo)
 
-case class RequestFailed(index: Int, peer: PeerInfo)
+case class ChokeReceived(peer: PeerInfo)
+
+case class UnchokeReceived(peer: PeerInfo)
+
+case class RequestBlockFailed(index: Int, peer: PeerInfo)
+
+case class RequestBlock(request: Request, peer: PeerInfo)
+
+case class BlockReceived(block: Piece, peer: PeerInfo)
 
 class Client(torrent: Torrent, system: ActorSystem) extends Actor {
   private val localId = Random.alphanumeric.take(20).mkString("")
-
-
   private val port = 55555
   private val peerActorMap = mutable.Map[String, ActorRef]()
-  private val peers = mutable.Set[PeerInfo]()
-  private val peersWithPendingRequest = mutable.Set[PeerInfo]()
-  //  private val failedRequestCounts = mutable.Map[String, Int]()
 
-  private var downloadComplete = false
-  private var downloadedPieces: Array[Boolean] = new Array(torrent.pieceCount)
-
-  //  private var currentPiece: Int = 0
-  private var currentBlocks: Array[Array[Byte]] = Array[Array[Byte]]()
-  private val requestedBlocks: mutable.Set[Int] = mutable.Set[Int]()
+  var first = true;
 
   private val listener = context.actorOf(
     Props(classOf[ConnectionListener], new InetSocketAddress(port), system),
@@ -45,6 +43,11 @@ class Client(torrent: Torrent, system: ActorSystem) extends Actor {
     "tracker"
   )
 
+  private val downloader = context.actorOf(
+    Props(classOf[Downloader], self, torrent),
+    "downloader"
+  )
+
   def receive: Receive = {
     case "stop" =>
       println("stopped " + localId)
@@ -53,7 +56,6 @@ class Client(torrent: Torrent, system: ActorSystem) extends Actor {
     case "start" =>
       println("update tracker")
       tracker ! Update(torrent, Started)
-      self ! "download"
 
     case UpdatePeers(peerList) =>
       println("update peers " + peerList)
@@ -65,49 +67,33 @@ class Client(torrent: Torrent, system: ActorSystem) extends Actor {
     case PeerConnected(peer, actor) =>
       println(peer.peerId + ": connected")
       peerActorMap.put(peer.peerId, actor)
-      peers.add(peer)
 
     case PeerDisconnected(peer) =>
       println(peer.peerId + ": disconnected")
       if (peerActorMap.isDefinedAt(peer.peerId)) peerActorMap.remove(peer.peerId)
-      peers.remove(peer)
+      downloader ! RemovePeer(peer)
 
-    case "download" =>
-      val pieceIndex = nextPieceIndex()
-      if (pieceIndex < 0) {
-        downloadComplete = true
-        println("All pieces have been downloaded")
-      } else {
+    case ChokeReceived(peer) =>
+      downloader ! RemovePeer(peer)
 
-        val blockCount = torrent.blockCount(pieceIndex)
-        currentBlocks = new Array[Array[Byte]](blockCount)
-
-        for (p <- peers) {
-          val block = nextBlockIndex()
-          if(block.isDefined && !requestedBlocks.contains(block.get) && !peersWithPendingRequest.contains(p)) {
-            peerActorMap(p.peerId) ! Request(block.get, block.get * torrent.defaultBlockSize, torrent.blockSize(pieceIndex, block.get))
-            requestedBlocks.add(block.get)
-            peersWithPendingRequest.add(p)
-          }
-        }
+    case UnchokeReceived(peer) =>
+      downloader ! AddPeer(peer)
+      if (first) {
+        first = false
+        println("DOWNLOAD!")
+        downloader ! "download"
       }
-      if (!downloadComplete) self ! "download"
 
-    case RequestFailed(index, peer) =>
-      peersWithPendingRequest.remove(peer)
-      requestedBlocks.remove(index)
+    case RequestBlock(request, peer) =>
+      println("REQUEST BLOCK " + request.index + " FROM PEER " + peer.peerId)
+      println(request)
+      if (peerActorMap.contains(peer.peerId)) peerActorMap(peer.peerId) ! request
 
-    case Piece(index, begin, block) =>
-      println("Client has piece index " + index)
-      if(currentBlocks.isDefinedAt(index)) currentBlocks(index) = block
-      val piecesRemaining = currentBlocks.count(i => i == null)
-      println(piecesRemaining + " pieces remaining")
+    case msg@RequestBlockFailed(index, peer) =>
+      downloader ! msg
 
+    case msg@BlockReceived(piece, peer) =>
+      downloader ! msg
 
   }
-
-  private def nextPieceIndex(): Int = downloadedPieces.indexOf(false)
-
-  private def nextBlockIndex(): Option[Int] =
-    currentBlocks.zipWithIndex.find(i => i._1 == null && !requestedBlocks.contains(i._2)).map(_._2)
 }

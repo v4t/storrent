@@ -36,6 +36,10 @@ object Main {
 //    val bencodeValues = parseSource(file).get
 //    val metaInfo = MetaInfo.fromBencode(bencodeValues).get
 
+    println("default block size", torrent.defaultBlockSize)
+    println("pieceSize", torrent.pieceSize(0))
+    println("pieceblock", torrent.blockSize(0, 0))
+
     val system = ActorSystem("scala-torrent")
 
     implicit val timeout: Timeout = Timeout(10, TimeUnit.SECONDS)

@@ -27,7 +27,7 @@ object Piece {
     else {
       val index = ByteBuffer.wrap(bytes.slice(5, 9)).getInt
       val begin = ByteBuffer.wrap(bytes.slice(9, 13)).getInt
-      val block = bytes.drop(5)
+      val block = bytes.drop(13)
       Some(Piece(index, begin, block))
     }
   }

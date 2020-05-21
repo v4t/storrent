@@ -11,7 +11,6 @@ class ConnectionListener(localAddress: InetSocketAddress, actorSystem: ActorSyst
   IO(Tcp)(actorSystem) ! Bind(self, localAddress)
 
   def receive: Receive = {
-
     case CommandFailed(_: Bind) =>
       println("Failed to start listening on " + localAddress.getHostName + ":" + localAddress.getPort)
       context stop self

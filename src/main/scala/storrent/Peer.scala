@@ -1,6 +1,7 @@
 package storrent
 
 import java.net.InetSocketAddress
+import java.nio.ByteBuffer
 
 import akka.actor.{Actor, ActorRef, ReceiveTimeout}
 import akka.io.{IO, Tcp}
@@ -9,6 +10,7 @@ import storrent.metainfo.Torrent
 import storrent.peers._
 import storrent.tracker.PeerInfo
 
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
 
 class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) extends Actor {
@@ -17,14 +19,15 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
   import context.system
 
   val remote = new InetSocketAddress(peer.ip, peer.port)
+  val peerBitfield: Array[Boolean] = new Array(torrent.pieceCount)
+  val blockBuffer = ArrayBuffer[Byte]()
+
 
   var choking = true
   var peerChoking = true
 
   var interested = false
   var peerInterested = false
-
-  var peerBitfield: Array[Boolean] = new Array(torrent.pieceCount)
 
   IO(Tcp) ! Connect(remote, timeout = Some(30.seconds))
 
@@ -61,7 +64,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       client ! "write failed"
 
     case Received(data) =>
-      handleReceivedData(data)
+      handleReceivedData(data, connection)
 
     case Request(index, begin, length) =>
       if (!peerChoking && peerBitfield(index)) {
@@ -70,7 +73,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
         println(peer.peerId + ": Requested block " + index)
       } else {
         println(peer.peerId + ": Failed to request block. choke: " + peerChoking + " & bf: " + peerBitfield(index))
-        sender ! RequestFailed(index, peer)
+        sender ! RequestBlockFailed(index, peer)
       }
 
     case "close" =>
@@ -82,7 +85,32 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       context.stop(self)
   }
 
-  private def handleReceivedData(data: ByteString): Unit = {
+  def buffering(piece: Piece, blockSize: Int, connection: ActorRef): Receive = {
+    case Received(data) =>
+      blockBuffer ++= data
+      println("Buffered " + blockBuffer.length + " bytes for piece " + piece.index)
+      if (blockBuffer.length == blockSize) self ! "complete"
+      else if (blockBuffer.length > blockSize) self ! "overflow"
+
+    case "complete" =>
+      val completePiece = Piece(piece.index, piece.begin, blockBuffer.toArray)
+      client ! BlockReceived(completePiece, peer)
+      context.become(active(connection))
+
+    case "overflow" =>
+      println("Block buffer overflow: " + blockBuffer.length)
+      val completePiece = Piece(piece.index, piece.begin, blockBuffer.take(blockSize).toArray)
+      client ! BlockReceived(completePiece, peer)
+      context.become(active(connection))
+      val remainingBytes = ByteString.fromArray(blockBuffer.drop(blockSize).toArray)
+      handleReceivedData(remainingBytes, connection)
+
+    case "close" => connection ! Close
+
+    case _: ConnectionClosed => context.stop(self)
+  }
+
+  private def handleReceivedData(data: ByteString, connection: ActorRef): Unit = {
     val msg = Message.decode(data.toArray);
     if (msg.isEmpty) {
       println(peer.peerId + ": Received unknown message of " + data.length + " bytes. Message id: " + (data(4) & 0xff))
@@ -96,7 +124,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       case Have(index) => handleHave(index)
       case Bitfield(dp) => handleBitfield(dp)
       case Request(index, begin, length) => handleRequest(index, begin, length)
-      case piece@Piece(_, _, _) => handlePiece(piece)
+      case piece@Piece(_, _, _) => handlePiece(piece, data, connection)
       case Cancel(index, begin, length) => handleCancel(index, begin, length)
       case Port(listenPort) => handlePort(listenPort)
     }
@@ -109,11 +137,13 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
   private def handleChoke(): Unit = {
     println(peer.peerId + ": Received choke")
     peerChoking = true
+    client ! ChokeReceived(peer)
   }
 
   private def handleUnchoke(): Unit = {
-    println(peer.peerId + ": Received unchoke" + " " + peerBitfield(0))
+    println(peer.peerId + ": Received unchoke")
     peerChoking = false
+    client ! UnchokeReceived(peer)
   }
 
   private def handleInterested(): Unit = {
@@ -145,9 +175,17 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     println(peer.peerId + ": Received request")
   }
 
-  private def handlePiece(piece: Piece): Unit = {
-    println(peer.peerId + ": Received piece " + piece.index)
-    client ! piece
+  private def handlePiece(piece: Piece, data:ByteString, connection: ActorRef): Unit = {
+    println(peer.peerId + ": Received piece(block) " + piece.index + ", total of " + data.length + " bytes.")
+    println(piece)
+    if(piece.block.length != torrent.defaultBlockSize) {
+      println("block size should be " + (ByteBuffer.wrap(data.take(4).toArray).getInt - 9))
+      blockBuffer.clear()
+      blockBuffer ++= piece.block
+      context.become(buffering(piece, 16384, connection))
+    } else {
+      client ! BlockReceived(piece, peer)
+    }
   }
 
   private def handleCancel(index: Int, begin: Int, length: Int): Unit = {
