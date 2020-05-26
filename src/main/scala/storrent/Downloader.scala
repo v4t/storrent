@@ -1,6 +1,9 @@
 package storrent
 
+import java.nio.charset.StandardCharsets
+
 import akka.actor.{Actor, ActorRef}
+import storrent.bencode.BencodeEncoder
 import storrent.metainfo.Torrent
 import storrent.peers.{Piece, Request}
 import storrent.tracker.PeerInfo
@@ -12,6 +15,7 @@ case class RemovePeer(peer: PeerInfo)
 
 class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
 
+  private val messageDigest = java.security.MessageDigest.getInstance("SHA-1")
   private val peers = mutable.Set[PeerInfo]()
   private val peersWithPendingRequest = mutable.Set[PeerInfo]()
   private val failingPeers = mutable.Set[PeerInfo]()
@@ -42,7 +46,7 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
         println("All pieces have been downloaded")
       } else {
 
-        if(pieceComplete) {
+        if (pieceComplete) {
           val blockCount = torrent.blockCount(pieceIndex)
           currentBlocks = new Array[Array[Byte]](blockCount)
           pieceComplete = false
@@ -51,7 +55,7 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
         for (p <- peers) {
           val block = nextBlockIndex()
           if (block.isDefined && !requestedBlocks.contains(block.get) && !peersWithPendingRequest.contains(p) && !failingPeers.contains(p)) {
-            val request = Request(block.get, block.get * torrent.defaultBlockSize, torrent.blockSize(pieceIndex, block.get))
+            val request = Request(pieceIndex, block.get * torrent.defaultBlockSize, torrent.blockSize(pieceIndex, block.get))
             client ! RequestBlock(request, p)
             requestedBlocks.add(block.get)
             peersWithPendingRequest.add(p)
@@ -67,11 +71,20 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
 
     case BlockReceived(piece, peer) =>
       peersWithPendingRequest.remove(peer)
-      val index = piece.index
-      if (currentBlocks.isDefinedAt(index))  {
-        currentBlocks(index) = piece.block
+      val block = piece.begin / torrent.defaultBlockSize
+      if (currentBlocks.isDefinedAt(block))  {
+        currentBlocks(block) = piece.block
       }
       val blocksRemaining = currentBlocks.count(i => i == null)
+
+      if(blocksRemaining == 0) {
+        if(validateCurrentPiece(nextPieceIndex())) {
+          println("Current piece hash valid")
+        } else {
+          println("Failed to verify current piece")
+        }
+      }
+
   }
 
 
@@ -79,4 +92,9 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
 
   private def nextBlockIndex(): Option[Int] =
     currentBlocks.zipWithIndex.find(i => i._1 == null && !requestedBlocks.contains(i._2)).map(_._2)
+
+  private def validateCurrentPiece(piece: Int): Boolean = {
+    val hash: Array[Byte] = messageDigest.digest(currentBlocks.flatten)
+    hash.sameElements(torrent.pieceVerificationHash(piece))
+  }
 }

@@ -43,8 +43,7 @@ object MetaInfo {
   }
 
   private def calculateInfoHash(dict: BencodeDict): Array[Byte] = {
-    val infoBytes = BencodeEncoder.encode(List(dict))
-      .getBytes(StandardCharsets.ISO_8859_1)
+    val infoBytes = BencodeEncoder.encode(List(dict)).getBytes(StandardCharsets.ISO_8859_1)
     val md = java.security.MessageDigest.getInstance("SHA-1")
     md.digest(infoBytes)
   }
