@@ -11,7 +11,9 @@ class Torrent(val metaInfo: MetaInfo) {
 
   private lazy val verificationHashes: Array[String] = metaInfo.info.pieces.grouped(20).toArray
 
-  val defaultBlockSize = 16384
+  val defaultPieceSize: Int = metaInfo.info.pieceLength
+
+  val defaultBlockSize: Int = 16384
 
   val totalLength: Long = metaInfo.info.files.foldLeft(0.toLong)((acc, f) => acc + f.length)
 
@@ -21,10 +23,10 @@ class Torrent(val metaInfo: MetaInfo) {
 
   def pieceSize(piece: Int): Int = {
     if (piece == pieceCount - 1) {
-      val remainder = totalLength % metaInfo.info.pieceLength
-      if (remainder != 0) remainder.toInt else metaInfo.info.pieceLength
+      val remainder = totalLength % defaultPieceSize
+      if (remainder != 0) remainder.toInt else defaultPieceSize
     } else {
-      metaInfo.info.pieceLength
+      defaultPieceSize
     }
   }
 
@@ -38,6 +40,8 @@ class Torrent(val metaInfo: MetaInfo) {
   }
 
   def pieceVerificationHash(piece: Int): Array[Byte] = verificationHashes(piece).getBytes(StandardCharsets.ISO_8859_1)
+
+  def files: List[FileInfo] = metaInfo.info.files
 
 }
 

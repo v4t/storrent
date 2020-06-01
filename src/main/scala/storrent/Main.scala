@@ -1,18 +1,14 @@
 package storrent
 
-import java.nio.charset.StandardCharsets
+import java.io.File
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorSystem, Props}
-
 import akka.util.Timeout
-import storrent.bencode.{BencodeParser, BencodeValue}
-import storrent.metainfo.{MetaInfo, Torrent}
+import storrent.metainfo.Torrent
 
 import scala.concurrent.ExecutionContextExecutor
-import scala.io.{Codec, Source}
-import scala.util.{Failure, Try}
 
 
 object Main {
@@ -23,11 +19,11 @@ object Main {
   def main(args: Array[String]) {
     if (args.isEmpty) {
       println("Usage: storrent [torrent file]")
-      System.exit(0)
+      System.exit(1)
     }
     if (!Files.exists(Paths.get(args(0)))) {
       println("Given file does not exist")
-      System.exit(0)
+      System.exit(1)
     }
 
     val file = args(0)
@@ -39,6 +35,8 @@ object Main {
     println("default block size", torrent.defaultBlockSize)
     println("pieceSize", torrent.pieceSize(0))
     println("pieceblock", torrent.blockSize(0, 0))
+
+//    println(torrent.metaInfo.toString)
 
     val system = ActorSystem("scala-torrent")
 
@@ -52,18 +50,4 @@ object Main {
     client ! "stop"
         /*system.terminate()*/
   }
-
-  private def parseSource(filePath: String): Try[List[BencodeValue]] = {
-    lazy val source = Source.fromFile(filePath)(Codec.ISO8859)
-    try {
-      BencodeParser.parse(source.mkString)
-    }
-    catch {
-      case e: Exception => Failure(e)
-    }
-    finally {
-      source.close
-    }
-  }
-
 }
