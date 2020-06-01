@@ -9,7 +9,7 @@ object BencodeEncoder {
     val head = values.head
     val tail = values.tail
     head match {
-      case BencodeString(str) => encodeValues(tail, result + (str.size + ":" + str))
+      case BencodeString(str) => encodeValues(tail, result + (str.length + ":" + str))
       case BencodeInt(int) => encodeValues(tail, result + ("i" + int + "e"))
       case BencodeList(list) => encodeValues(tail, result + ("l" + encodeValues(list, "") + "e"))
       case BencodeDict(dict) => encodeValues(tail, result + ("d" + encodeDict(dict) + "e"))

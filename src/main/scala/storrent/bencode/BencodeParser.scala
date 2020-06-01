@@ -27,7 +27,7 @@ object BencodeParser extends RegexParsers {
     repN(strLength.toInt, elem("any char", c => true)) ^^ (i => BencodeString(i.mkString))
   }
 
-  def int: Parser[BencodeInt] = "i" ~> """(0|\-?[1-9]\d*)""".r <~ "e" ^^ (i => BencodeInt(i.toLong))
+  def int: Parser[BencodeInt] = "i" ~> """(0|-?[1-9]\d*)""".r <~ "e" ^^ (i => BencodeInt(i.toLong))
 
   def list: Parser[BencodeList] = "l" ~> rep(value) <~ "e" ^^ (i => BencodeList(i))
 
