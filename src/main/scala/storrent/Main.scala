@@ -52,7 +52,7 @@ object Main {
     val client = system.actorOf(Props(classOf[Client], torrent, system), "client")
     client ! "start"
 
-    Thread.sleep(30000)
+//    Thread.sleep(30000)
     client ! "stop"
         /*system.terminate()*/
   }

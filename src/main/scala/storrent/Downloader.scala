@@ -8,12 +8,13 @@ import storrent.peers.Request
 import storrent.tracker.PeerInfo
 
 import scala.collection.mutable
+import scala.util.Random
 
 case class AddPeer(peer: PeerInfo)
 
 case class RemovePeer(peer: PeerInfo)
 
-class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
+class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLogging{
   private val basePath = "D:\\Downloads\\Test"
   private val downloadPath =
     if (torrent.files.length == 1) basePath
@@ -29,7 +30,7 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
   private var downloadComplete = false
   private var downloadedPieces: Array[Boolean] = new Array(torrent.pieceCount)
 
-  //  private var currentPiece: Int = 0
+  private var currentPiece: Int = -1
   private var pieceComplete = true
   private var currentBlocks: Array[Array[Byte]] = Array[Array[Byte]]()
   private val requestedBlocks: mutable.Set[Int] = mutable.Set[Int]()
@@ -39,11 +40,11 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
   def receive: Receive = {
     case AddPeer(peer) =>
       peers.add(peer)
-      println("Added peer " + peer.peerId)
+      log.debug("Added peer " + peer.peerId)
 
     case RemovePeer(peer) =>
       peers.remove(peer)
-      println("Removed peer " + peer.peerId)
+      log.debug("Removed peer " + peer.peerId)
 
     case "download" =>
       if (!filesReady) {
@@ -52,7 +53,7 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
       val pieceIndex = nextPieceIndex()
       if (pieceIndex < 0) {
         downloadComplete = true
-        println("All pieces have been downloaded")
+        log.debug("All pieces have been downloaded")
       } else {
 
         if (pieceComplete) {
@@ -74,9 +75,10 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
       if (!downloadComplete) self ! "download"
 
     case RequestBlockFailed(index, peer) =>
-      println("Failed to retrieve block " + index)
+      val block = index / torrent.defaultBlockSize
+      log.debug("Failed to retrieve block " + block)
       failingPeers.add(peer)
-      requestedBlocks.remove(index)
+      requestedBlocks.remove(block)
 
     case BlockReceived(piece, peer) =>
       peersWithPendingRequest.remove(peer)
@@ -85,19 +87,31 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
         currentBlocks(block) = piece.block
       }
       val blocksRemaining = currentBlocks.count(i => i == null)
-
+      log.debug("Blocks remaining " + blocksRemaining)
       if (blocksRemaining == 0) {
         if (validateCurrentPiece(nextPieceIndex())) {
-          println("Current piece hash valid")
+          log.debug("Current piece hash valid")
           writePieceToFile()
         } else {
-          println("Failed to verify current piece")
+          log.debug("Failed to verify current piece")
         }
+        pieceComplete = true
+        requestedBlocks.clear()
       }
 
   }
 
-  private def nextPieceIndex(): Int = downloadedPieces.indexOf(false)
+  private def nextPieceIndex(): Int =  {
+    if (currentPiece >= 0 && !pieceComplete) return currentPiece
+    val z = downloadedPieces.zipWithIndex.filter(p => !p._1)
+    if (z.length > 0) {
+      val randomIndex = Random.nextInt(z.length)
+      val nextIndex = z(randomIndex)._2
+      log.debug("Selected piece " + nextIndex + " for next")
+      currentPiece = nextIndex
+      nextIndex
+    } else -1
+  }
 
   private def nextBlockIndex(): Option[Int] =
     currentBlocks.zipWithIndex.find(i => i._1 == null && !requestedBlocks.contains(i._2)).map(_._2)
@@ -108,31 +122,31 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor {
   }
 
   private def initializeFiles(): Unit = {
-    if (torrent.files.length > 1) {
-      if (!new File(downloadPath).mkdir()) {
-        println("Could not create directory for torrent")
-        client ! "stop"
-      }
-    }
-    for (fileInfo <- torrent.files) {
-      val fname = downloadPath + "\\" + fileInfo.path.mkString("\\")
-      val raf = new RandomAccessFile(fname, "rw")
-      raf.setLength(fileInfo.length)
-      raf.close()
-    }
+//    if (torrent.files.length > 1) {
+//      if (!new File(downloadPath).mkdir()) {
+//        log.debug("Could not create directory for torrent")
+//        client ! "stop"
+//      }
+//    }
+//    for (fileInfo <- torrent.files) {
+//      val fname = downloadPath + "\\" + fileInfo.path.mkString("\\")
+//      val raf = new RandomAccessFile(fname, "rw")
+//      raf.setLength(fileInfo.length)
+//      raf.close()
+//    }
   }
 
   private def writePieceToFile(): Unit = {
-    val pieceIndex = 0
     val fileInfo = torrent.files.head
+    val pieceIndex = currentPiece
     val filePos = pieceIndex * torrent.defaultPieceSize
 
-    val f = new RandomAccessFile(downloadPath + "\\" + fileInfo.path.mkString("\\"), "rw")
-    f.seek(filePos)
-    f.write(currentBlocks.flatten)
-    f.close()
+//    val f = new RandomAccessFile(downloadPath + "\\" + fileInfo.path.mkString("\\"), "rw")
+//    f.seek(filePos)
+//    f.write(currentBlocks.flatten)
+//    f.close()
     downloadedPieces(pieceIndex) = true
-    println("piece " + pieceIndex + " written to file")
+    log.debug("piece " + pieceIndex + " written to file")
   }
 
 }

@@ -3,14 +3,14 @@ package storrent
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-import akka.actor.Actor
+import akka.actor.{Actor, ActorLogging}
 import scalaj.http._
 import storrent.metainfo.Torrent
 import storrent.tracker._
 
 case class Update(torrent: Torrent, event: TrackerEvent)
 
-class Tracker(localId: String, port: Int) extends Actor {
+class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
 
   private val charSet = StandardCharsets.ISO_8859_1
 
@@ -21,10 +21,9 @@ class Tracker(localId: String, port: Int) extends Actor {
       val response: HttpResponse[Array[Byte]] = Http(query).asBytes
       val resStr = new String(response.body, charSet)
 
-      println("Received response from tracker")
       TrackerResponse.parse(resStr) match {
         case sr:SuccessResponse => sender() ! UpdatePeers(sr.peers)
-        case FailureResponse(msg) => println("Tracker request failed: " + msg)
+        case FailureResponse(msg) => log.error("Tracker request failed: " + msg)
       }
     }
   }
