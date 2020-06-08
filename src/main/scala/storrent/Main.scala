@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorSystem, Props}
 import akka.util.Timeout
+import com.typesafe.config.ConfigFactory
 import storrent.metainfo.Torrent
 
 import scala.concurrent.ExecutionContextExecutor
@@ -38,7 +39,12 @@ object Main {
 
 //    println(torrent.metaInfo.toString)
 
-    val system = ActorSystem("scala-torrent")
+    val value = ConfigFactory.load().getString("storrent.test")
+    println(s"storrent.test = $value")
+
+    val conf = ConfigFactory.load()
+    val system = ActorSystem("scala-torrent", conf)
+//    system.logConfiguration()
 
     implicit val timeout: Timeout = Timeout(10, TimeUnit.SECONDS)
     implicit val ec: ExecutionContextExecutor = system.dispatcher
