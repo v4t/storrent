@@ -174,10 +174,8 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
   }
 
   private def handlePiece(piece: Piece, data:ByteString, connection: ActorRef): Unit = {
-    log.debug(peer.peerId + ": Received piece(block) " + piece.index + ", total of " + data.length + " bytes")
     if(piece.block.length != torrent.defaultBlockSize) {
       val expectedBlockSize = ByteBuffer.wrap(data.take(4).toArray).getInt - 9
-      log.debug("Block size should be " + expectedBlockSize)
       blockBuffer.clear()
       blockBuffer ++= piece.block
       context.become(buffering(piece, expectedBlockSize, connection))

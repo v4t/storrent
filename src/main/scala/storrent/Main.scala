@@ -12,6 +12,7 @@ import storrent.metainfo.Torrent
 import scala.concurrent.ExecutionContextExecutor
 
 
+
 object Main {
 
 //  val port = 55555
@@ -33,24 +34,25 @@ object Main {
 //    val bencodeValues = parseSource(file).get
 //    val metaInfo = MetaInfo.fromBencode(bencodeValues).get
 
-    println("default block size", torrent.defaultBlockSize)
-    println("pieceSize", torrent.pieceSize(0))
-    println("pieceblock", torrent.blockSize(0, 0))
+//    println("default block size", torrent.defaultBlockSize)
+//    println("pieceSize", torrent.pieceSize(0))
+//    println("pieceblock", torrent.blockSize(0, 0))
 
 //    println(torrent.metaInfo.toString)
 
-    val value = ConfigFactory.load().getString("storrent.test")
-    println(s"storrent.test = $value")
-
     val conf = ConfigFactory.load()
     val system = ActorSystem("scala-torrent", conf)
-//    system.logConfiguration()
 
     implicit val timeout: Timeout = Timeout(10, TimeUnit.SECONDS)
     implicit val ec: ExecutionContextExecutor = system.dispatcher
 
     val client = system.actorOf(Props(classOf[Client], torrent, system), "client")
     client ! "start"
+
+    Iterator.continually(scala.io.StdIn.readLine("> ")).takeWhile(_ != "q").foreach {
+      case "foo" => println("bar")
+      case _ => println("Unknown input")
+    }
 
 //    Thread.sleep(30000)
     client ! "stop"

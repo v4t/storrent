@@ -18,11 +18,13 @@ class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
     case Update(torrent, event) => {
       val request = populateTrackerRequest(torrent, event)
       val query = TrackerRequest.getQueryString(request)
-      val response: HttpResponse[Array[Byte]] = Http(query).asBytes
+      val response: HttpResponse[Array[Byte]] = Http(query).timeout(connTimeoutMs = 10000, readTimeoutMs = 10000).asBytes
       val resStr = new String(response.body, charSet)
 
+      log.debug(query)
+
       TrackerResponse.parse(resStr) match {
-        case sr:SuccessResponse => sender() ! UpdatePeers(sr.peers)
+        case sr: SuccessResponse => sender() ! UpdatePeers(sr.peers)
         case FailureResponse(msg) => log.error("Tracker request failed: " + msg)
       }
     }
