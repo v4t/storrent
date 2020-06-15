@@ -31,14 +31,6 @@ object Main {
     val file = args(0)
     val name = file.split('/').last.replace(".torrent", "")
     val torrent = Torrent.fromFile(file).get
-//    val bencodeValues = parseSource(file).get
-//    val metaInfo = MetaInfo.fromBencode(bencodeValues).get
-
-//    println("default block size", torrent.defaultBlockSize)
-//    println("pieceSize", torrent.pieceSize(0))
-//    println("pieceblock", torrent.blockSize(0, 0))
-
-//    println(torrent.metaInfo.toString)
 
     val conf = ConfigFactory.load()
     val system = ActorSystem("scala-torrent", conf)
@@ -54,8 +46,6 @@ object Main {
       case _ => println("Unknown input")
     }
 
-//    Thread.sleep(30000)
     client ! "stop"
-        /*system.terminate()*/
   }
 }

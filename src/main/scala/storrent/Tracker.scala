@@ -41,7 +41,7 @@ class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
       port = port,
       compact = 1,
       event = Some(event),
-      numWant = Some(40),
+      numWant = Some(50),
       ip = None
     )
 }

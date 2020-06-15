@@ -5,7 +5,7 @@ import storrent.bencode._
 case class FileInfo(
   path: List[String],
   length: Long,
-  md5Sum: Option[String]
+  md5Sum: Option[String],
 )
 
 object FileInfo {

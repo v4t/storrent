@@ -3,7 +3,7 @@ package storrent
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ReceiveTimeout}
+import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.io.{IO, Tcp}
 import akka.util.ByteString
 import storrent.metainfo.Torrent
@@ -70,9 +70,8 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       if (!peerChoking && peerBitfield(index)) {
         val bytes = Request.encode(index, begin, length)
         connection ! Write(ByteString(bytes))
-        log.debug(peer.peerId + ": Requested block " + index)
       } else {
-        log.debug(peer.peerId + ": Failed to request block. choke: " + peerChoking + " & bf: " + peerBitfield(index))
+        log.debug(peer.peerId + ": Failed to request block")
         sender ! RequestBlockFailed(index, peer)
       }
 
@@ -112,6 +111,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     val msg = Message.decode(data.toArray);
     if (msg.isEmpty) {
       log.debug(peer.peerId + ": Received unknown message of " + data.length + " bytes. Message id: " + (data(4) & 0xff))
+      println(data.toArray.map(_ & 0xff).mkString(","))
     }
     else msg.get match {
       case KeepAlive() => handleKeepAlive()
@@ -163,11 +163,23 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     // Fail if bitfield is not of the correct size, or if the bitfield has any of the spare bits set.
     if (bitfield.length != peerBitfield.length && bitfield.drop(torrent.pieceCount).contains(true)) {
       log.debug(peer.peerId + ": Received invalid bitfield")
+      log.debug("Was " + bitfield.length + " bytes instead of " + peerBitfield.length)
+
+      val bitfieldAsBytes = bitfield
+        .sliding(8, 8)
+        .map(i => bitsToByte(i) & 0xff)
+        .toArray
+      println("xD", bitfieldAsBytes.mkString(","))
+
       self ! "close"
     } else {
+      log.debug(peer.peerId + ": Received bitfield")
       for (i <- 0 until torrent.pieceCount) peerBitfield(i) = bitfield(i)
     }
   }
+
+  private def bitsToByte(bits: Array[Boolean]): Byte =
+    bits.foldLeft(0)((acc, bit) => if (bit) (acc << 1) | 1 else acc << 1).toByte
 
   private def handleRequest(index: Int, begin: Int, length: Int): Unit = {
     log.debug(peer.peerId + ": Received request")
