@@ -1,6 +1,6 @@
 package storrent.peers
 
-import java.nio.ByteOrder
+import java.nio.{ByteBuffer, ByteOrder}
 
 trait Message {}
 
@@ -24,6 +24,10 @@ object Message {
       case _ => None
     }
   }
+
+  def decodeLength(bytes: Seq[Byte]): Option[Int] =
+    if(bytes.length >= 4) Some(ByteBuffer.wrap(bytes.take(4).toArray).getInt)
+    else None
 }
 
 object MessageId {

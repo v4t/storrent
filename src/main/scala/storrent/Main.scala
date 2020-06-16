@@ -31,6 +31,7 @@ object Main {
     val file = args(0)
     val name = file.split('/').last.replace(".torrent", "")
     val torrent = Torrent.fromFile(file).get
+    println(torrent.pieceCount)
 
     val conf = ConfigFactory.load()
     val system = ActorSystem("scala-torrent", conf)

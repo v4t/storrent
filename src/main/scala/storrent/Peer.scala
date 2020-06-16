@@ -1,7 +1,6 @@
 package storrent
 
 import java.net.InetSocketAddress
-import java.nio.ByteBuffer
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.io.{IO, Tcp}
@@ -10,6 +9,7 @@ import storrent.metainfo.Torrent
 import storrent.peers._
 import storrent.tracker.PeerInfo
 
+import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
 
@@ -20,8 +20,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
 
   val remote = new InetSocketAddress(peer.ip, peer.port)
   val peerBitfield: Array[Boolean] = new Array(torrent.pieceCount)
-  val blockBuffer: ArrayBuffer[Byte] = ArrayBuffer[Byte]()
-
+  val tcpBuffer: ArrayBuffer[Byte] = ArrayBuffer[Byte]()
 
   var choking = true
   var peerChoking = true
@@ -45,13 +44,18 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
 
   def waitingHandshake(connection: ActorRef): Receive = {
     case Received(data) =>
-      if (Handshake.decode(data.toArray).isEmpty) {
+      val handshakeBytes = data.take(68).toArray
+      if (data.length > 68) {
+        tcpBuffer ++= data.drop(68)
+      }
+      if (Handshake.decode(handshakeBytes.toArray).isEmpty) {
         log.debug(peer.peerId + ": Failed to decode handshake")
         self ! "close"
       } else {
         context.become(active(connection))
         client ! PeerConnected(peer, self)
         connection ! Interested.encode()
+        parseMessagesFromBuffer()
       }
 
     case "close" => connection ! Close
@@ -64,7 +68,8 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       client ! "write failed"
 
     case Received(data) =>
-      handleReceivedData(data, connection)
+      tcpBuffer ++= data
+      parseMessagesFromBuffer()
 
     case Request(index, begin, length) =>
       if (!peerChoking && peerBitfield(index)) {
@@ -84,34 +89,21 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       context.stop(self)
   }
 
-  def buffering(piece: Piece, blockSize: Int, connection: ActorRef): Receive = {
-    case Received(data) =>
-      blockBuffer ++= data
-      if (blockBuffer.length == blockSize) self ! "complete"
-      else if (blockBuffer.length > blockSize) self ! "overflow"
-
-    case "complete" =>
-      val completePiece = Piece(piece.index, piece.begin, blockBuffer.toArray)
-      client ! BlockReceived(completePiece, peer)
-      context.become(active(connection))
-
-    case "overflow" =>
-      val completePiece = Piece(piece.index, piece.begin, blockBuffer.take(blockSize).toArray)
-      client ! BlockReceived(completePiece, peer)
-      context.become(active(connection))
-      val remainingBytes = ByteString.fromArray(blockBuffer.drop(blockSize).toArray)
-      handleReceivedData(remainingBytes, connection)
-
-    case "close" => connection ! Close
-
-    case _: ConnectionClosed => context.stop(self)
+  @tailrec
+  private def parseMessagesFromBuffer(): Unit = {
+    val lengthPrefix = Message.decodeLength(tcpBuffer)
+    if (lengthPrefix.isDefined && tcpBuffer.length >= 4 + lengthPrefix.get) {
+      val messageLength = 4 + lengthPrefix.get
+      handleMessage(tcpBuffer.take(messageLength).toArray)
+      tcpBuffer.remove(0, messageLength)
+      parseMessagesFromBuffer()
+    }
   }
 
-  private def handleReceivedData(data: ByteString, connection: ActorRef): Unit = {
-    val msg = Message.decode(data.toArray);
+  private def handleMessage(message: Array[Byte]): Unit = {
+    val msg = Message.decode(message);
     if (msg.isEmpty) {
-      log.debug(peer.peerId + ": Received unknown message of " + data.length + " bytes. Message id: " + (data(4) & 0xff))
-      println(data.toArray.map(_ & 0xff).mkString(","))
+      log.debug(peer.peerId + ": Received unknown message of " + message.length + " bytes. Message id: " + (message(4) & 0xff))
     }
     else msg.get match {
       case KeepAlive() => handleKeepAlive()
@@ -122,7 +114,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       case Have(index) => handleHave(index)
       case Bitfield(dp) => handleBitfield(dp)
       case Request(index, begin, length) => handleRequest(index, begin, length)
-      case piece@Piece(_, _, _) => handlePiece(piece, data, connection)
+      case piece@Piece(_, _, _) => handlePiece(piece)
       case Cancel(index, begin, length) => handleCancel(index, begin, length)
       case Port(listenPort) => handlePort(listenPort)
     }
@@ -163,14 +155,6 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     // Fail if bitfield is not of the correct size, or if the bitfield has any of the spare bits set.
     if (bitfield.length != peerBitfield.length && bitfield.drop(torrent.pieceCount).contains(true)) {
       log.debug(peer.peerId + ": Received invalid bitfield")
-      log.debug("Was " + bitfield.length + " bytes instead of " + peerBitfield.length)
-
-      val bitfieldAsBytes = bitfield
-        .sliding(8, 8)
-        .map(i => bitsToByte(i) & 0xff)
-        .toArray
-      println("xD", bitfieldAsBytes.mkString(","))
-
       self ! "close"
     } else {
       log.debug(peer.peerId + ": Received bitfield")
@@ -185,15 +169,9 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     log.debug(peer.peerId + ": Received request")
   }
 
-  private def handlePiece(piece: Piece, data:ByteString, connection: ActorRef): Unit = {
-    if(piece.block.length != torrent.defaultBlockSize) {
-      val expectedBlockSize = ByteBuffer.wrap(data.take(4).toArray).getInt - 9
-      blockBuffer.clear()
-      blockBuffer ++= piece.block
-      context.become(buffering(piece, expectedBlockSize, connection))
-    } else {
-      client ! BlockReceived(piece, peer)
-    }
+  private def handlePiece(piece: Piece): Unit = {
+    log.debug(peer.peerId + ": Received piece")
+    client ! BlockReceived(piece, peer)
   }
 
   private def handleCancel(index: Int, begin: Int, length: Int): Unit = {

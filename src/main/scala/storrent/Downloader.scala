@@ -99,17 +99,12 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
 
   private def downloadComplete() = !downloadedPieces.contains(false)
 
-  var in = 0
-
   private def nextPieceIndex(): Int = {
-    val temp = in
-    in += 1
-    temp
-    //    val availablePieces = downloadedPieces.zipWithIndex.filter(p => !p._1)
-    //    if (availablePieces.length > 0) {
-    //      val randomIndex = Random.nextInt(availablePieces.length)
-    //      availablePieces(randomIndex)._2
-    //    } else -1
+    val availablePieces = downloadedPieces.zipWithIndex.filter(p => !p._1)
+    if (availablePieces.length > 0) {
+      val randomIndex = Random.nextInt(availablePieces.length)
+      availablePieces(randomIndex)._2
+    } else -1
   }
 
   private def nextBlockIndex(): Option[Int] =
@@ -121,17 +116,17 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
   }
 
   private def initializeFiles(): Unit = {
-        if (torrent.files.length > 1) {
-          if (!new File(downloadPath).mkdir()) {
-            log.error("Could not create directory for torrent")
-            client ! "stop"
-          }
-        }
-        for (fileInfo <- torrent.files) {
-          val raf = new RandomAccessFile(filePath(fileInfo), "rw")
-          raf.setLength(fileInfo.length)
-          raf.close()
-        }
+    //    if (torrent.files.length > 1) {
+    //      if (!new File(downloadPath).mkdir()) {
+    //        log.error("Could not create directory for torrent")
+    //        client ! "stop"
+    //      }
+    //    }
+    //    for (fileInfo <- torrent.files) {
+    //      val raf = new RandomAccessFile(filePath(fileInfo), "rw")
+    //      raf.setLength(fileInfo.length)
+    //      raf.close()
+    //    }
   }
 
   private def filePath(f: FileInfo) = downloadPath + File.pathSeparator + f.path.mkString(File.pathSeparator)
@@ -139,15 +134,15 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
   private def persistPieceToDisk(bytes: Array[Byte]): Unit = {
     val files = torrent.filesContainingPiece(currentPiece)
 
-    if (files.length == 1) {
-      val filePos = currentPiece * torrent.defaultPieceSize
-      val f = new RandomAccessFile(filePath(files.head), "rw")
-      f.seek(filePos)
-      f.write(bytes)
-      f.close()
-    } else {
-      writeToMultipleFileTorrent(currentPiece, bytes)
-    }
+//    if (files.length == 1) {
+//      val filePos = currentPiece * torrent.defaultPieceSize
+//      val f = new RandomAccessFile(filePath(files.head), "rw")
+//      f.seek(filePos)
+//      f.write(bytes)
+//      f.close()
+//    } else {
+//      writeToMultipleFileTorrent(currentPiece, bytes)
+//    }
 
     downloadedPieces(currentPiece) = true
     val remaining = downloadedPieces.count(p => !p)
