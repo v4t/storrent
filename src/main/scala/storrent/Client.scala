@@ -20,7 +20,7 @@ case class ChokeReceived(peer: PeerInfo)
 
 case class UnchokeReceived(peer: PeerInfo)
 
-case class RequestBlockFailed(index: Int, peer: PeerInfo)
+case class RequestBlockFailed(request: Request, peer: PeerInfo)
 
 case class RequestBlock(request: Request, peer: PeerInfo)
 
@@ -30,8 +30,6 @@ class Client(torrent: Torrent, system: ActorSystem) extends Actor with ActorLogg
   private val localId = Random.alphanumeric.take(20).mkString("")
   private val port = 55555
   private val peerActorMap = mutable.Map[String, ActorRef]()
-
-  var first = true;
 
   private val listener = context.actorOf(
     Props(classOf[ConnectionListener], new InetSocketAddress(port), system),
@@ -76,15 +74,13 @@ class Client(torrent: Torrent, system: ActorSystem) extends Actor with ActorLogg
 
     case UnchokeReceived(peer) =>
       downloader ! AddPeer(peer)
-      if (first) {
-        first = false
-        downloader ! "download"
-      }
 
     case RequestBlock(request, peer) =>
-      if (peerActorMap.contains(peer.peerId)) peerActorMap(peer.peerId) ! request
+      if (peerActorMap.contains(peer.peerId)) {
+        peerActorMap(peer.peerId) ! request
+      }
 
-    case msg@RequestBlockFailed(index, peer) =>
+    case msg@RequestBlockFailed(request, peer) =>
       downloader ! msg
 
     case msg@BlockReceived(piece, peer) =>

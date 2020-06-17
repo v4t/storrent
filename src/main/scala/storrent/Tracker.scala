@@ -21,7 +21,7 @@ class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
       val response: HttpResponse[Array[Byte]] = Http(query).timeout(connTimeoutMs = 10000, readTimeoutMs = 10000).asBytes
       val resStr = new String(response.body, charSet)
 
-      log.debug(query)
+      println(query)
 
       TrackerResponse.parse(resStr) match {
         case sr: SuccessResponse => sender() ! UpdatePeers(sr.peers)

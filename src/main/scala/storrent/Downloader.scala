@@ -26,7 +26,6 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
   private val peersWithPendingRequest = mutable.Set[PeerInfo]()
   private val failingPeers = mutable.Set[PeerInfo]()
 
-  private var filesReady = false
   private var downloadedPieces: Array[Boolean] = new Array(torrent.pieceCount)
 
   private var currentPiece: Int = -1
@@ -34,50 +33,27 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
   private var currentBlocks: Array[Array[Byte]] = Array[Array[Byte]]()
   private val requestedBlocks: mutable.Set[Int] = mutable.Set[Int]()
 
+  override def preStart(): Unit = {
+    initializeFiles()
+    super.preStart()
+  }
 
   def receive: Receive = {
     case AddPeer(peer) =>
       peers.add(peer)
+      requestBlocks()
       log.debug("Added peer " + peer.peerId)
 
     case RemovePeer(peer) =>
       peers.remove(peer)
       log.debug("Removed peer " + peer.peerId)
 
-    case "download" =>
-      if (!filesReady) {
-        initializeFiles()
-      }
-      if (currentPiece < 0 || downloadedPieces(currentPiece)) {
-        log.info("Active peers: " + (peers.size + peersWithPendingRequest.size))
-        currentPiece = nextPieceIndex()
-      }
-      if (!downloadComplete()) {
-        if (pieceComplete) {
-          val blockCount = torrent.blockCount(currentPiece)
-          currentBlocks = new Array[Array[Byte]](blockCount)
-          pieceComplete = false
-        }
-        for (p <- peers) {
-          val block = nextBlockIndex()
-          if (block.isDefined && !requestedBlocks.contains(block.get) && !peersWithPendingRequest.contains(p) && !failingPeers.contains(p)) {
-            val request = Request(currentPiece, block.get * torrent.defaultBlockSize, torrent.blockSize(currentPiece, block.get))
-            client ! RequestBlock(request, p)
-            requestedBlocks.add(block.get)
-            peersWithPendingRequest.add(p)
-          }
-        }
-        self ! "download"
-      } else {
-        log.info("Download complete")
-      }
-
-
-    case RequestBlockFailed(index, peer) =>
-      val block = index / torrent.defaultBlockSize
+    case RequestBlockFailed(request, peer) =>
+      val block = request.begin / torrent.defaultBlockSize
       log.debug("Failed to retrieve block " + block)
       failingPeers.add(peer)
       requestedBlocks.remove(block)
+      requestBlocks()
 
     case BlockReceived(piece, peer) =>
       peersWithPendingRequest.remove(peer)
@@ -93,8 +69,34 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
         }
         pieceComplete = true
         requestedBlocks.clear()
+        failingPeers.clear()
       }
+      requestBlocks()
+  }
 
+  private def requestBlocks(): Unit = {
+    if (downloadComplete()) {
+      log.info("Download complete")
+      return
+    }
+    if (currentPiece < 0 || downloadedPieces(currentPiece)) {
+      currentPiece = nextPieceIndex()
+    }
+    if (pieceComplete) {
+      val blockCount = torrent.blockCount(currentPiece)
+      currentBlocks = new Array[Array[Byte]](blockCount)
+      pieceComplete = false
+    }
+    for (p <- peers) {
+
+      val block = nextBlockIndex()
+      if (block.isDefined && !requestedBlocks.contains(block.get) && !peersWithPendingRequest.contains(p) && !failingPeers.contains(p)) {
+        val request = Request(currentPiece, block.get * torrent.defaultBlockSize, torrent.blockSize(currentPiece, block.get))
+        client ! RequestBlock(request, p)
+        requestedBlocks.add(block.get)
+        peersWithPendingRequest.add(p)
+      }
+    }
   }
 
   private def downloadComplete() = !downloadedPieces.contains(false)
@@ -132,7 +134,7 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
   private def filePath(f: FileInfo) = downloadPath + File.pathSeparator + f.path.mkString(File.pathSeparator)
 
   private def persistPieceToDisk(bytes: Array[Byte]): Unit = {
-    val files = torrent.filesContainingPiece(currentPiece)
+//    val files = torrent.filesContainingPiece(currentPiece)
 
 //    if (files.length == 1) {
 //      val filePos = currentPiece * torrent.defaultPieceSize
@@ -141,7 +143,7 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
 //      f.write(bytes)
 //      f.close()
 //    } else {
-//      writeToMultipleFileTorrent(currentPiece, bytes)
+      writeToMultipleFileTorrent(currentPiece, bytes)
 //    }
 
     downloadedPieces(currentPiece) = true
@@ -155,12 +157,12 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
 
     val files = for {
       (file, fileStart) <- torrent.files.zip(startingPositions)
-      if ((fileStart <= piece && piece < fileStart + file.length)
-        || (fileStart >= piece && piece + pieceSize > fileStart))
-    } yield (file, fileStart)
+      if ((fileStart <= piece && piece < fileStart + file.length) // Piece start is within file
+        || (fileStart >= piece && piece + pieceSize > fileStart)) // Piece overlaps file
+    } yield file
 
-    val fileOffset = piece * pieceSize - files.head._2
-    iter(bytes, files.map(_._1), fileOffset)
+    val fileOffset = piece * pieceSize - startingPositions.head
+    iter(bytes, files, fileOffset)
   }
 
   @tailrec
@@ -171,10 +173,10 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
       if (fileOffset + bytes.length > file.length) (file.length - fileOffset).toInt
       else bytes.length
 
-    val f = new RandomAccessFile(filePath(file), "rw")
-    f.seek(fileOffset)
-    f.write(bytes.take(byteCount))
-    f.close()
+//    val f = new RandomAccessFile(filePath(file), "rw")
+//    f.seek(fileOffset)
+//    f.write(bytes.take(byteCount))
+//    f.close()
 
     // if block overlaps multiple files, the subsequent file offsets are always 0
     iter(bytes.drop(byteCount), files.tail, 0)

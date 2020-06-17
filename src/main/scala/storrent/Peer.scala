@@ -71,13 +71,13 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       tcpBuffer ++= data
       parseMessagesFromBuffer()
 
-    case Request(index, begin, length) =>
+    case r@Request(index, begin, length) =>
       if (!peerChoking && peerBitfield(index)) {
         val bytes = Request.encode(index, begin, length)
         connection ! Write(ByteString(bytes))
       } else {
         log.debug(peer.peerId + ": Failed to request block")
-        sender ! RequestBlockFailed(index, peer)
+        sender ! RequestBlockFailed(r, peer)
       }
 
     case "close" =>
@@ -103,7 +103,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
   private def handleMessage(message: Array[Byte]): Unit = {
     val msg = Message.decode(message);
     if (msg.isEmpty) {
-      log.debug(peer.peerId + ": Received unknown message of " + message.length + " bytes. Message id: " + (message(4) & 0xff))
+      log.debug(peer.peerId + ": Received unknown message of " + message.length)
     }
     else msg.get match {
       case KeepAlive() => handleKeepAlive()

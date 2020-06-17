@@ -11,11 +11,6 @@ class Torrent(val metaInfo: MetaInfo) {
 
   private val verificationHashes: Array[String] = metaInfo.info.pieces.grouped(20).toArray
 
-  private val xx: Map[Int, List[String]] = {
-
-    Map[Int, List[String]]()
-  }
-
   val defaultPieceSize: Int = metaInfo.info.pieceLength
 
   val defaultBlockSize: Int = 16384
@@ -47,17 +42,6 @@ class Torrent(val metaInfo: MetaInfo) {
   def pieceVerificationHash(piece: Int): Array[Byte] = verificationHashes(piece).getBytes(StandardCharsets.ISO_8859_1)
 
   def files: List[FileInfo] = metaInfo.info.files
-
-  def filesContainingPiece(piece: Int): List[FileInfo] = {
-    val pieceLength = pieceSize(piece)
-    val pieceStart = defaultPieceSize * piece
-    val startingPositions: List[Long] = files.map(_.length).scan(0L)(_ + _)
-    for {
-      (file, fileStart) <- files.zip(startingPositions)
-      if ((fileStart <= pieceStart && pieceStart < fileStart + file.length) // Piece start is within file
-        || (fileStart >= pieceStart && pieceStart + pieceLength > fileStart)) // Piece overlaps file
-    } yield file
-  }
 
 }
 
