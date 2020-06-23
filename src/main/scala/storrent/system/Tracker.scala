@@ -1,4 +1,4 @@
-package storrent
+package storrent.system
 
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -32,7 +32,14 @@ class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
     }
   }
 
+  /**
+   * Create tracker request payload.
+   * @param torrent Torrent data
+   * @param event   Tracker event to be sent
+   * @return
+   */
   private def populateTrackerRequest(torrent: Torrent, event: Option[TrackerEvent]): TrackerRequest =
+    // TODO: Implement getting real data for uploaded & downloaded parameters
     TrackerRequest(
       baseUrl = torrent.metaInfo.announceList.head,
       infoHash = URLEncoder.encode(new String(torrent.metaInfo.infoHash, charSet), charSet),

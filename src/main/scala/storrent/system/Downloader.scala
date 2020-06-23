@@ -1,10 +1,10 @@
-package storrent
+package storrent.system
 
 import java.io.{File, RandomAccessFile}
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
-import storrent.torrent.{FileInfo, Torrent}
 import storrent.peerprotocol.Request
+import storrent.torrent.{FileInfo, Torrent}
 import storrent.trackerprotocol.PeerInfo
 
 import scala.annotation.tailrec
@@ -16,26 +16,38 @@ case class AddPeer(peer: PeerInfo)
 case class RemovePeer(peer: PeerInfo)
 
 class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Actor with ActorLogging {
+  /** Path to download location. */
   private val downloadPath =
     if (torrent.files.length == 1) saveDir
     else saveDir + "\\" + torrent.metaInfo.info.name
 
+  /** Message digest for piece validation. */
   private val messageDigest = java.security.MessageDigest.getInstance("SHA-1")
 
+  /** Currently available peers. */
   private val peers = mutable.Set[PeerInfo]()
 
+  /** Peers that have pending requests (client should only make one request at a time to a peer). */
   private val peersWithPendingRequest = mutable.Set[PeerInfo]()
 
+  /** Peers that have failed to respond to block request for current piece. */
   private val failingPeers = mutable.Set[PeerInfo]()
 
+  /** Array representing pieces that have already been downloaded. */
   private val downloadedPieces: Array[Boolean] = new Array(torrent.pieceCount)
 
+  /** Blocks that have been requested for current piece. */
   private val requestedBlocks: mutable.Set[Int] = mutable.Set[Int]()
 
+  /** Index of the piece currently being downloaded. */
   private var currentPiece: Int = nextPieceIndex()
 
+  /** Array containing blocks that have been downloaded successfully for current piece. */
   private var currentBlocks: Array[Array[Byte]] = Array[Array[Byte]]()
 
+  /**
+   * Initialize torrent files before starting download.
+   */
   override def preStart(): Unit = {
     initializeFiles()
     super.preStart()
@@ -76,6 +88,9 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
       requestBlocks()
   }
 
+  /**
+   * Request blocks to be downloaded from peers if download is not complete.
+   */
   private def requestBlocks(): Unit = {
     if (currentPiece < 0 || downloadComplete()) {
       log.info("Download complete")
@@ -99,9 +114,18 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     }
   }
 
+  /**
+   * Return boolean flag signifying whether download is complete or not.
+   * @return True if download is complete, otherwise false
+   */
   private def downloadComplete() = !downloadedPieces.contains(false)
 
+  /**
+   * Get index for piece that will be downloaded next.
+   * @return Piece index
+   */
   private def nextPieceIndex(): Int = {
+    // TODO: Implement better piece selection
     val availablePieces = downloadedPieces.zipWithIndex.filter(p => !p._1)
     if (availablePieces.length > 0) {
       val randomIndex = Random.nextInt(availablePieces.length)
@@ -109,14 +133,27 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     } else -1
   }
 
+  /**
+   * Get index for block that will be downloaded next (blocks are requested sequentially).
+   * @return Block index
+   */
   private def nextBlockIndex(): Option[Int] =
     currentBlocks.zipWithIndex.find(i => i._1 == null && !requestedBlocks.contains(i._2)).map(_._2)
 
+  /**
+   * Check that downloaded piece is correct.
+   * @param piece Piece index
+   * @param bytes Piece bytes
+   * @return True if piece is correct, otherwise false
+   */
   private def validatePieceHash(piece: Int, bytes: Array[Byte]): Boolean = {
     val hash: Array[Byte] = messageDigest.digest(bytes)
     hash.sameElements(torrent.pieceVerificationHash(piece))
   }
 
+  /**
+   * Set up files specified in torrent file.
+   */
   private def initializeFiles(): Unit = {
 //    if (torrent.files.length > 1) {
 //      if (!new File(downloadPath).mkdir()) {
@@ -131,8 +168,17 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 //    }
   }
 
+  /**
+   * Return download file path for given file.
+   * @param f File
+   * @return File path
+   */
   private def filePath(f: FileInfo) = downloadPath + File.pathSeparator + f.path.mkString(File.pathSeparator)
 
+  /**
+   * Write downloaded piece to file / files.
+   * @param bytes Piece bytes
+   */
   private def persistPieceToDisk(bytes: Array[Byte]): Unit = {
 //    if (torrent.files.length == 1) {
 //      persistPieceForSingleFileTorrent(bytes)
@@ -144,6 +190,10 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     log.debug("Piece #" + currentPiece + " downloaded, " + remaining + " remaining.")
   }
 
+  /**
+   * Write piece to a file specified in a single file torrent.
+   * @param bytes Piece bytes
+   */
   private def persistPieceForSingleFileTorrent(bytes: Array[Byte]): Unit = {
     val pieceOffset = currentPiece * torrent.defaultPieceSize
     val f = new RandomAccessFile(filePath(torrent.files.head), "rw")
@@ -152,6 +202,11 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     f.close()
   }
 
+  /**
+   * Write piece to file(s) specified in a multi-file torrent.
+   * @param piece Piece index
+   * @param bytes Piece bytes
+   */
   private def persistPieceForMultipleFileTorrent(piece: Int, bytes: Array[Byte]): Unit = {
     val pieceSize = torrent.pieceSize(piece)
     val fileStartingPositions: List[Long] = torrent.files.map(_.length).scan(0L)(_ + _)
@@ -166,6 +221,12 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     writePieceToFiles(bytes, files, firstPieceOffset)
   }
 
+  /**
+   * Write piece to files it possibly spans over.
+   * @param bytes Piece bytes
+   * @param files Files that contain bytes from piece
+   * @param pieceOffset Piece offset for current file
+   */
   @tailrec
   private def writePieceToFiles(bytes: Array[Byte], files: List[FileInfo], pieceOffset: Long): Unit = {
     if (files.isEmpty) return
@@ -179,7 +240,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     f.write(bytes.take(byteCount))
     f.close()
 
-    // if block overlaps multiple files, the subsequent pieces are always at the beginning of file
+    // if piece overlaps multiple files, the subsequent byte blocks are always at the beginning of file
     writePieceToFiles(bytes.drop(byteCount), files.tail, 0)
   }
 

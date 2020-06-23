@@ -1,12 +1,12 @@
-package storrent
+package storrent.system
 
 import java.net.InetSocketAddress
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.io.{IO, Tcp}
 import akka.util.ByteString
-import storrent.torrent.Torrent
 import storrent.peerprotocol._
+import storrent.torrent.Torrent
 import storrent.trackerprotocol.PeerInfo
 
 import scala.annotation.tailrec
@@ -30,6 +30,10 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
 
   IO(Tcp) ! Connect(remote, timeout = Some(30.seconds))
 
+  /**
+   * Initial actor context for connecting with peers.
+   * @return
+   */
   def receive = {
     case CommandFailed(_: Connect) =>
       client ! PeerDisconnected(peer)
@@ -42,6 +46,11 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       connection ! Write(ByteString(Handshake.encode(torrent.metaInfo.infoHash, localId)))
   }
 
+  /**
+   * Peer is waiting for protocol handshake to be completed.
+   * @param connection Peer connection
+   * @return
+   */
   def waitingHandshake(connection: ActorRef): Receive = {
     case Received(data) =>
       val handshakeBytes = data.take(68).toArray
@@ -63,6 +72,11 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     case _: ConnectionClosed => context.stop(self)
   }
 
+  /**
+   * Peer is actively receiving / sending messages.
+   * @param connection Peer connection
+   * @return
+   */
   def active(connection: ActorRef): Receive = {
     case CommandFailed(w: Write) =>
       client ! "write failed"
@@ -89,6 +103,9 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       context.stop(self)
   }
 
+  /**
+   * Read bytes from tcp buffer and parse them into peer protocol messages.
+   */
   @tailrec
   private def parseMessagesFromBuffer(): Unit = {
     val lengthPrefix = Message.decodeLength(tcpBuffer)
@@ -100,6 +117,10 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     }
   }
 
+  /**
+   * Parse given bytes into peer protocol message.
+   * @param message Byte block containing peer protocol message
+   */
   private def handleMessage(message: Array[Byte]): Unit = {
     val msg = Message.decode(message);
     if (msg.isEmpty) {
@@ -119,6 +140,10 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       case Port(listenPort) => handlePort(listenPort)
     }
   }
+
+  /*
+   * Peer protocol message handlers
+   */
 
   private def handleKeepAlive(): Unit = {
     log.debug(s"[${peer.peerId}]: Received keepalive")
@@ -161,9 +186,6 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       for (i <- 0 until torrent.pieceCount) peerBitfield(i) = bitfield(i)
     }
   }
-
-  private def bitsToByte(bits: Array[Boolean]): Byte =
-    bits.foldLeft(0)((acc, bit) => if (bit) (acc << 1) | 1 else acc << 1).toByte
 
   private def handleRequest(index: Int, begin: Int, length: Int): Unit = {
     log.debug(s"[${peer.peerId}]: Received request")

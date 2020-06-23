@@ -1,16 +1,19 @@
-package storrent
+package storrent.system
 
 import java.net.InetSocketAddress
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
-import storrent.torrent.Torrent
 import storrent.peerprotocol.{Piece, Request}
+import storrent.torrent.Torrent
 import storrent.trackerprotocol.{Completed, PeerInfo, Started, Stopped}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.util.Random
 
+object Client {
+  case class Poop()
+}
 
 case class UpdatePeersFromTracker(peers: List[PeerInfo], interval: Long)
 
