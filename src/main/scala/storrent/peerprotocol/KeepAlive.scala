@@ -1,9 +1,12 @@
-package storrent.peers
+package storrent.peerprotocol
 
 import java.nio.{ByteBuffer, ByteOrder}
 
 import akka.util.ByteStringBuilder
 
+/**
+ * keep-alive: <len=0000>
+ */
 case class KeepAlive() extends Message
 
 object KeepAlive {

@@ -1,14 +1,17 @@
-package storrent.peers
+package storrent.peerprotocol
 
 import java.nio.{ByteBuffer, ByteOrder}
 
 import akka.util.ByteStringBuilder
 
+/**
+ * piece: <len=0009+X><id=7><index><begin><block>
+ */
 case class Piece(index: Int, begin: Int, block: Array[Byte]) extends Message
 
 object Piece {
   implicit val byteOrder: ByteOrder = ByteOrder.BIG_ENDIAN
-  val messageId: Byte = MessageId.PIECE
+  val messageId: Byte = Message.Id.PIECE
   val lengthPrefix: Int = 9
 
   def encode(index: Int, begin: Int, block: Array[Byte]): Array[Byte] = {

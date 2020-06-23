@@ -1,4 +1,4 @@
-package storrent.metainfo
+package storrent.torrent
 
 import java.nio.charset.StandardCharsets
 
@@ -7,13 +7,13 @@ import storrent.bencode.{BencodeParser, BencodeValue}
 import scala.io.{Codec, Source}
 import scala.util.{Failure, Success, Try}
 
-class Torrent(val metaInfo: MetaInfo) {
+class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
 
   private val verificationHashes: Array[String] = metaInfo.info.pieces.grouped(20).toArray
 
-  val defaultPieceSize: Int = metaInfo.info.pieceLength
+  val name: String = metaInfo.info.name
 
-  val defaultBlockSize: Int = 16384
+  val defaultPieceSize: Int = metaInfo.info.pieceLength
 
   val totalLength: Long = metaInfo.info.files.foldLeft(0.toLong)((acc, f) => acc + f.length)
 
@@ -47,11 +47,10 @@ class Torrent(val metaInfo: MetaInfo) {
 
 object Torrent {
 
-  def fromFile(file: String): Option[Torrent] = {
-    val name = file.split('/').last.replace(".torrent", "")
+  def fromFile(file: String, blockSize: Int): Option[Torrent] = {
     val bencodeValues = parseSource(file).get
     MetaInfo.fromBencode(bencodeValues) match {
-      case Success(metaInfo) => Some(new Torrent(metaInfo))
+      case Success(metaInfo) => Some(new Torrent(metaInfo, blockSize))
       case Failure(_) => None
     }
   }

@@ -3,14 +3,16 @@ package storrent
 import java.net.InetSocketAddress
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
-import storrent.metainfo.Torrent
-import storrent.peers.{Piece, Request}
-import storrent.tracker.{PeerInfo, Started}
+import storrent.torrent.Torrent
+import storrent.peerprotocol.{Piece, Request}
+import storrent.trackerprotocol.{Completed, PeerInfo, Started, Stopped}
 
 import scala.collection.mutable
+import scala.concurrent.duration._
 import scala.util.Random
 
-case class UpdatePeers(peers: List[PeerInfo])
+
+case class UpdatePeersFromTracker(peers: List[PeerInfo], interval: Long)
 
 case class PeerConnected(peer: PeerInfo, actor: ActorRef)
 
@@ -26,7 +28,7 @@ case class RequestBlock(request: Request, peer: PeerInfo)
 
 case class BlockReceived(block: Piece, peer: PeerInfo)
 
-class Client(torrent: Torrent, system: ActorSystem) extends Actor with ActorLogging {
+class Client(torrent: Torrent, saveDir: String, system: ActorSystem) extends Actor with ActorLogging {
   private val localId = Random.alphanumeric.take(20).mkString("")
   private val port = 55555
   private val peerActorMap = mutable.Map[String, ActorRef]()
@@ -42,26 +44,29 @@ class Client(torrent: Torrent, system: ActorSystem) extends Actor with ActorLogg
   )
 
   private val downloader = context.actorOf(
-    Props(classOf[Downloader], self, torrent),
+    Props(classOf[Downloader], self, torrent, saveDir),
     "downloader"
   )
 
   def receive: Receive = {
     case "stop" =>
-      log.info("Stopping the client")
-      system.terminate()
+      tracker ! Update(torrent, Some(Stopped))
 
     case "start" =>
-      tracker ! Update(torrent, Started)
+      tracker ! Update(torrent, Some(Started))
 
-    case UpdatePeers(peerList) =>
+    case "complete" =>
+      tracker ! Update(torrent, Some(Completed))
+
+    case UpdatePeersFromTracker(peerList, interval) =>
       peerList.foreach(p => context.actorOf(
         Props(classOf[Peer], p, torrent, localId, self),
-        "peer-" + p.ip + ":" + p.port + Random.alphanumeric.take(5).mkString("")
+        "peer-" + p.ip + "-" + Random.alphanumeric.take(5).mkString("")
       ))
+      context.system.scheduler.scheduleOnce(interval seconds, self, Update(torrent, None))(system.dispatcher)
 
     case PeerConnected(peer, actor) =>
-      log.debug(peer.peerId + ": connected")
+      log.info(peer.peerId + ": connected")
       peerActorMap.put(peer.peerId, actor)
 
     case PeerDisconnected(peer) =>

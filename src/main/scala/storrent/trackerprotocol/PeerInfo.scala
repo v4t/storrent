@@ -1,4 +1,4 @@
-package storrent.tracker
+package storrent.trackerprotocol
 
 import java.net.InetAddress
 import java.nio.ByteBuffer

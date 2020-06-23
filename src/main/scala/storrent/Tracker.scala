@@ -5,13 +5,12 @@ import java.nio.charset.StandardCharsets
 
 import akka.actor.{Actor, ActorLogging}
 import scalaj.http._
-import storrent.metainfo.Torrent
-import storrent.tracker._
+import storrent.torrent.Torrent
+import storrent.trackerprotocol._
 
-case class Update(torrent: Torrent, event: TrackerEvent)
+case class Update(torrent: Torrent, event: Option[TrackerEvent])
 
 class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
-
   private val charSet = StandardCharsets.ISO_8859_1
 
   def receive: Receive = {
@@ -19,18 +18,21 @@ class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
       val request = populateTrackerRequest(torrent, event)
       val query = TrackerRequest.getQueryString(request)
       val response: HttpResponse[Array[Byte]] = Http(query).timeout(connTimeoutMs = 10000, readTimeoutMs = 10000).asBytes
-      val resStr = new String(response.body, charSet)
+      val responseBody = new String(response.body, charSet)
 
-      println(query)
-
-      TrackerResponse.parse(resStr) match {
-        case sr: SuccessResponse => sender() ! UpdatePeers(sr.peers)
-        case FailureResponse(msg) => log.error("Tracker request failed: " + msg)
+      if (!event.contains(Stopped)) {
+        TrackerResponse.parse(responseBody) match {
+          case sr: SuccessResponse => sender() ! UpdatePeersFromTracker(sr.peers, sr.interval)
+          case FailureResponse(msg) => {
+            log.error("Tracker request failed. Reason: " + msg)
+            sender() ! UpdatePeersFromTracker(List(), 30)
+          }
+        }
       }
     }
   }
 
-  private def populateTrackerRequest(torrent: Torrent, event: TrackerEvent): TrackerRequest =
+  private def populateTrackerRequest(torrent: Torrent, event: Option[TrackerEvent]): TrackerRequest =
     TrackerRequest(
       baseUrl = torrent.metaInfo.announceList.head,
       infoHash = URLEncoder.encode(new String(torrent.metaInfo.infoHash, charSet), charSet),
@@ -40,7 +42,7 @@ class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
       peerId = URLEncoder.encode(localId, charSet),
       port = port,
       compact = 1,
-      event = Some(event),
+      event = event,
       numWant = Some(50),
       ip = None
     )

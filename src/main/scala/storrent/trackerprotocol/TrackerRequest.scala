@@ -1,4 +1,4 @@
-package storrent.tracker
+package storrent.trackerprotocol
 
 case class TrackerRequest(
   baseUrl: String,

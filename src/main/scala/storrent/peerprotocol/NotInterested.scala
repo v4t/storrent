@@ -1,14 +1,17 @@
-package storrent.peers
+package storrent.peerprotocol
 
 import java.nio.ByteOrder
 
 import akka.util.ByteStringBuilder
 
-case class Choke() extends Message
+/**
+ * not interested: <len=0001><id=3>
+ */
+case class NotInterested() extends Message
 
-object Choke {
+object NotInterested {
   implicit val byteOrder: ByteOrder = ByteOrder.BIG_ENDIAN
-  val messageId: Byte = MessageId.CHOKE
+  val messageId: Byte = Message.Id.NOT_INTERESTED
   val lengthPrefix: Int = 1
 
   def encode(): Array[Byte] = {
@@ -18,8 +21,8 @@ object Choke {
     bsb.result().toArray
   }
 
-  def decode(bytes: Array[Byte]): Option[Choke] = {
+  def decode(bytes: Array[Byte]): Option[NotInterested] = {
     if (bytes.length != 5 || bytes(4) != messageId || bytes.slice(0, 4).last != lengthPrefix) None
-    else Some(Choke())
+    else Some(NotInterested())
   }
 }

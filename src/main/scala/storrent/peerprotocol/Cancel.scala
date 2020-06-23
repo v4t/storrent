@@ -1,14 +1,17 @@
-package storrent.peers
+package storrent.peerprotocol
 
 import java.nio.{ByteBuffer, ByteOrder}
 
 import akka.util.ByteStringBuilder
 
-case class Request(index: Int, begin: Int, length: Int) extends  Message
+/**
+ * cancel: <len=0013><id=8><index><begin><length>
+ */
+case class Cancel(index: Int, begin: Int, length: Int) extends Message
 
-object Request {
+object Cancel {
   implicit val byteOrder: ByteOrder = ByteOrder.BIG_ENDIAN
-  val messageId: Byte = MessageId.REQUEST
+  val messageId: Byte = Message.Id.CANCEL
   val lengthPrefix: Int = 13
 
   def encode(index: Int, begin: Int, length: Int): Array[Byte] = {
@@ -21,13 +24,13 @@ object Request {
     bsb.result().toArray
   }
 
-  def decode(bytes: Array[Byte]): Option[Request] = {
+  def decode(bytes: Array[Byte]): Option[Cancel] = {
     if (bytes.length != 17 || bytes(4) != messageId || bytes.slice(0, 4).last != lengthPrefix) None
     else {
       val index = ByteBuffer.wrap(bytes.slice(5,9)).getInt
       val begin = ByteBuffer.wrap(bytes.slice(9,13)).getInt
       val length = ByteBuffer.wrap(bytes.slice(13,17)).getInt
-      Some(Request(index, begin, length))
+      Some(Cancel(index, begin, length))
     }
   }
 }

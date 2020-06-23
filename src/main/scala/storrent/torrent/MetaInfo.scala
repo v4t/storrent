@@ -1,4 +1,4 @@
-package storrent.metainfo
+package storrent.torrent
 
 import java.nio.charset.StandardCharsets
 

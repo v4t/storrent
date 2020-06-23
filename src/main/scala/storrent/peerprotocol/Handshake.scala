@@ -1,4 +1,4 @@
-package storrent.peers
+package storrent.peerprotocol
 
 import java.nio.charset.StandardCharsets
 

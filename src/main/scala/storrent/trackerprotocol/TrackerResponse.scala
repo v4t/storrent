@@ -1,4 +1,4 @@
-package storrent.tracker
+package storrent.trackerprotocol
 
 import storrent.bencode._
 

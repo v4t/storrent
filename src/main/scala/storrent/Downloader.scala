@@ -3,9 +3,9 @@ package storrent
 import java.io.{File, RandomAccessFile}
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
-import storrent.metainfo.{FileInfo, Torrent}
-import storrent.peers.Request
-import storrent.tracker.PeerInfo
+import storrent.torrent.{FileInfo, Torrent}
+import storrent.peerprotocol.Request
+import storrent.trackerprotocol.PeerInfo
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -15,23 +15,26 @@ case class AddPeer(peer: PeerInfo)
 
 case class RemovePeer(peer: PeerInfo)
 
-class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLogging {
-  private val basePath = "D:\\Downloads\\Test"
+class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Actor with ActorLogging {
   private val downloadPath =
-    if (torrent.files.length == 1) basePath
-    else basePath + "\\" + torrent.metaInfo.info.name
+    if (torrent.files.length == 1) saveDir
+    else saveDir + "\\" + torrent.metaInfo.info.name
 
   private val messageDigest = java.security.MessageDigest.getInstance("SHA-1")
+
   private val peers = mutable.Set[PeerInfo]()
+
   private val peersWithPendingRequest = mutable.Set[PeerInfo]()
+
   private val failingPeers = mutable.Set[PeerInfo]()
 
-  private var downloadedPieces: Array[Boolean] = new Array(torrent.pieceCount)
+  private val downloadedPieces: Array[Boolean] = new Array(torrent.pieceCount)
 
-  private var currentPiece: Int = -1
-  private var pieceComplete = true
-  private var currentBlocks: Array[Array[Byte]] = Array[Array[Byte]]()
   private val requestedBlocks: mutable.Set[Int] = mutable.Set[Int]()
+
+  private var currentPiece: Int = nextPieceIndex()
+
+  private var currentBlocks: Array[Array[Byte]] = Array[Array[Byte]]()
 
   override def preStart(): Unit = {
     initializeFiles()
@@ -67,7 +70,6 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
         if (validatePieceHash(currentPiece, blockAsBytes)) {
           persistPieceToDisk(blockAsBytes)
         }
-        pieceComplete = true
         requestedBlocks.clear()
         failingPeers.clear()
       }
@@ -75,20 +77,18 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
   }
 
   private def requestBlocks(): Unit = {
-    if (downloadComplete()) {
+    if (currentPiece < 0 || downloadComplete()) {
       log.info("Download complete")
       return
     }
-    if (currentPiece < 0 || downloadedPieces(currentPiece)) {
+    if (downloadedPieces(currentPiece)) {
       currentPiece = nextPieceIndex()
-    }
-    if (pieceComplete) {
+      if (currentPiece < 0) return
+
       val blockCount = torrent.blockCount(currentPiece)
       currentBlocks = new Array[Array[Byte]](blockCount)
-      pieceComplete = false
     }
     for (p <- peers) {
-
       val block = nextBlockIndex()
       if (block.isDefined && !requestedBlocks.contains(block.get) && !peersWithPendingRequest.contains(p) && !failingPeers.contains(p)) {
         val request = Request(currentPiece, block.get * torrent.defaultBlockSize, torrent.blockSize(currentPiece, block.get))
@@ -118,68 +118,69 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
   }
 
   private def initializeFiles(): Unit = {
-    //    if (torrent.files.length > 1) {
-    //      if (!new File(downloadPath).mkdir()) {
-    //        log.error("Could not create directory for torrent")
-    //        client ! "stop"
-    //      }
-    //    }
-    //    for (fileInfo <- torrent.files) {
-    //      val raf = new RandomAccessFile(filePath(fileInfo), "rw")
-    //      raf.setLength(fileInfo.length)
-    //      raf.close()
-    //    }
+//    if (torrent.files.length > 1) {
+//      if (!new File(downloadPath).mkdir()) {
+//        log.error("Could not create directory for torrent")
+//        client ! "stop"
+//      }
+//    }
+//    for (fileInfo <- torrent.files) {
+//      val raf = new RandomAccessFile(filePath(fileInfo), "rw")
+//      raf.setLength(fileInfo.length)
+//      raf.close()
+//    }
   }
 
   private def filePath(f: FileInfo) = downloadPath + File.pathSeparator + f.path.mkString(File.pathSeparator)
 
   private def persistPieceToDisk(bytes: Array[Byte]): Unit = {
-//    val files = torrent.filesContainingPiece(currentPiece)
-
-//    if (files.length == 1) {
-//      val filePos = currentPiece * torrent.defaultPieceSize
-//      val f = new RandomAccessFile(filePath(files.head), "rw")
-//      f.seek(filePos)
-//      f.write(bytes)
-//      f.close()
+//    if (torrent.files.length == 1) {
+//      persistPieceForSingleFileTorrent(bytes)
 //    } else {
-      writeToMultipleFileTorrent(currentPiece, bytes)
+//      persistPieceForMultipleFileTorrent(currentPiece, bytes)
 //    }
-
     downloadedPieces(currentPiece) = true
     val remaining = downloadedPieces.count(p => !p)
-    log.info("Piece  #" + currentPiece + " downloaded, " + remaining + " remaining.")
+    log.debug("Piece #" + currentPiece + " downloaded, " + remaining + " remaining.")
   }
 
-  private def writeToMultipleFileTorrent(piece: Int, bytes: Array[Byte]): Unit = {
+  private def persistPieceForSingleFileTorrent(bytes: Array[Byte]): Unit = {
+    val pieceOffset = currentPiece * torrent.defaultPieceSize
+    val f = new RandomAccessFile(filePath(torrent.files.head), "rw")
+    f.seek(pieceOffset)
+    f.write(bytes)
+    f.close()
+  }
+
+  private def persistPieceForMultipleFileTorrent(piece: Int, bytes: Array[Byte]): Unit = {
     val pieceSize = torrent.pieceSize(piece)
-    val startingPositions: List[Long] = torrent.files.map(_.length).scan(0L)(_ + _)
+    val fileStartingPositions: List[Long] = torrent.files.map(_.length).scan(0L)(_ + _)
 
     val files = for {
-      (file, fileStart) <- torrent.files.zip(startingPositions)
+      (file, fileStart) <- torrent.files.zip(fileStartingPositions)
       if ((fileStart <= piece && piece < fileStart + file.length) // Piece start is within file
         || (fileStart >= piece && piece + pieceSize > fileStart)) // Piece overlaps file
     } yield file
 
-    val fileOffset = piece * pieceSize - startingPositions.head
-    iter(bytes, files, fileOffset)
+    val firstPieceOffset = piece * pieceSize - fileStartingPositions.head
+    writePieceToFiles(bytes, files, firstPieceOffset)
   }
 
   @tailrec
-  private def iter(bytes: Array[Byte], files: List[FileInfo], fileOffset: Long): Unit = {
+  private def writePieceToFiles(bytes: Array[Byte], files: List[FileInfo], pieceOffset: Long): Unit = {
     if (files.isEmpty) return
     val file = files.head
     val byteCount =
-      if (fileOffset + bytes.length > file.length) (file.length - fileOffset).toInt
+      if (pieceOffset + bytes.length > file.length) (file.length - pieceOffset).toInt
       else bytes.length
 
-//    val f = new RandomAccessFile(filePath(file), "rw")
-//    f.seek(fileOffset)
-//    f.write(bytes.take(byteCount))
-//    f.close()
+    val f = new RandomAccessFile(filePath(file), "rw")
+    f.seek(pieceOffset)
+    f.write(bytes.take(byteCount))
+    f.close()
 
-    // if block overlaps multiple files, the subsequent file offsets are always 0
-    iter(bytes.drop(byteCount), files.tail, 0)
+    // if block overlaps multiple files, the subsequent pieces are always at the beginning of file
+    writePieceToFiles(bytes.drop(byteCount), files.tail, 0)
   }
 
 }

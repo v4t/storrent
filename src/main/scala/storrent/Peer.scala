@@ -5,9 +5,9 @@ import java.net.InetSocketAddress
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.io.{IO, Tcp}
 import akka.util.ByteString
-import storrent.metainfo.Torrent
-import storrent.peers._
-import storrent.tracker.PeerInfo
+import storrent.torrent.Torrent
+import storrent.peerprotocol._
+import storrent.trackerprotocol.PeerInfo
 
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
@@ -49,7 +49,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
         tcpBuffer ++= data.drop(68)
       }
       if (Handshake.decode(handshakeBytes.toArray).isEmpty) {
-        log.debug(peer.peerId + ": Failed to decode handshake")
+        log.debug(s"[${peer.peerId}]: Failed to decode handshake")
         self ! "close"
       } else {
         context.become(active(connection))
@@ -76,12 +76,12 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
         val bytes = Request.encode(index, begin, length)
         connection ! Write(ByteString(bytes))
       } else {
-        log.debug(peer.peerId + ": Failed to request block")
+        log.debug(s"[${peer.peerId}]: Failed to request block")
         sender ! RequestBlockFailed(r, peer)
       }
 
     case "close" =>
-      log.debug(peer.peerId + ": close connection")
+      log.debug(s"[${peer.peerId}]: close connection")
       connection ! Close
 
     case _: ConnectionClosed =>
@@ -103,7 +103,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
   private def handleMessage(message: Array[Byte]): Unit = {
     val msg = Message.decode(message);
     if (msg.isEmpty) {
-      log.debug(peer.peerId + ": Received unknown message of " + message.length)
+      log.debug(s"[${peer.peerId}]: Received unknown message of " + message.length)
     }
     else msg.get match {
       case KeepAlive() => handleKeepAlive()
@@ -121,43 +121,43 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
   }
 
   private def handleKeepAlive(): Unit = {
-    log.debug(peer.peerId + ": Received keepalive")
+    log.debug(s"[${peer.peerId}]: Received keepalive")
   }
 
   private def handleChoke(): Unit = {
-    log.debug(peer.peerId + ": Received choke")
+    log.debug(s"[${peer.peerId}]: Received choke")
     peerChoking = true
     client ! ChokeReceived(peer)
   }
 
   private def handleUnchoke(): Unit = {
-    log.debug(peer.peerId + ": Received unchoke")
+    log.debug(s"[${peer.peerId}]: Received unchoke")
     peerChoking = false
     client ! UnchokeReceived(peer)
   }
 
   private def handleInterested(): Unit = {
-    log.debug(peer.peerId + ": Received interested")
+    log.debug(s"[${peer.peerId}]: Received interested")
     peerInterested = true
   }
 
   private def handleNotInterested(): Unit = {
-    log.debug(peer.peerId + ": Received not interested")
+    log.debug(s"[${peer.peerId}]: Received not interested")
     peerInterested = false
   }
 
   private def handleHave(index: Int): Unit = {
-    log.debug(peer.peerId + ": Received have")
+    log.debug(s"[${peer.peerId}]: Received have")
     if (peerBitfield.isDefinedAt(index)) peerBitfield(index) = true
   }
 
   private def handleBitfield(bitfield: Array[Boolean]): Unit = {
     // Fail if bitfield is not of the correct size, or if the bitfield has any of the spare bits set.
     if (bitfield.length != peerBitfield.length && bitfield.drop(torrent.pieceCount).contains(true)) {
-      log.debug(peer.peerId + ": Received invalid bitfield")
+      log.debug(s"[${peer.peerId}]: Received invalid bitfield")
       self ! "close"
     } else {
-      log.debug(peer.peerId + ": Received bitfield")
+      log.debug(s"[${peer.peerId}]: Received bitfield")
       for (i <- 0 until torrent.pieceCount) peerBitfield(i) = bitfield(i)
     }
   }
@@ -166,19 +166,19 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
     bits.foldLeft(0)((acc, bit) => if (bit) (acc << 1) | 1 else acc << 1).toByte
 
   private def handleRequest(index: Int, begin: Int, length: Int): Unit = {
-    log.debug(peer.peerId + ": Received request")
+    log.debug(s"[${peer.peerId}]: Received request")
   }
 
   private def handlePiece(piece: Piece): Unit = {
-    log.debug(peer.peerId + ": Received piece")
+    log.debug(s"[${peer.peerId}]: Received piece")
     client ! BlockReceived(piece, peer)
   }
 
   private def handleCancel(index: Int, begin: Int, length: Int): Unit = {
-    log.debug(peer.peerId + ": Received cancel")
+    log.debug(s"[${peer.peerId}]: Received cancel")
   }
 
   private def handlePort(listenPort: Int): Unit = {
-    log.debug(peer.peerId + ": Received port")
+    log.debug(s"[${peer.peerId}]: Received port")
   }
 }

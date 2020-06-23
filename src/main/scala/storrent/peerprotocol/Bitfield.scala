@@ -1,14 +1,17 @@
-package storrent.peers
+package storrent.peerprotocol
 
 import java.nio.ByteOrder
 
 import akka.util.ByteStringBuilder
 
+/**
+ * bitfield: <len=0001+X><id=5><bitfield>
+ */
 case class Bitfield(downloadedPieces: Array[Boolean]) extends Message
 
 object Bitfield {
   implicit val byteOrder: ByteOrder = ByteOrder.BIG_ENDIAN
-  val messageId: Byte = MessageId.BITFIELD
+  val messageId: Byte = Message.Id.BITFIELD
   val lengthPrefix: Int = 1
 
   def encode(downloadedPieces: Array[Boolean]): Array[Byte] = {
