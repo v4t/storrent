@@ -67,6 +67,7 @@ class Client(torrent: Torrent, port: Int, saveDir: String, system: ActorSystem) 
     case RequestBlock(request, peer) =>
       if (peerActorMap.contains(peer.peerId)) {
         peerActorMap(peer.peerId) ! request
+        log.debug(s"Requesting block ${request.index}:${request.begin} from peer ${peer.peerId}")
       }
 
     case msg@RequestBlockFailed(request, peer) =>

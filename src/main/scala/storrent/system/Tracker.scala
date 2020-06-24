@@ -14,13 +14,11 @@ class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
   private val charSet = StandardCharsets.ISO_8859_1
 
   def receive: Receive = {
-    case Update(torrent, event) => None
     case Update(torrent, event) => {
       val request = populateTrackerRequest(torrent, event)
       val query = TrackerRequest.getQueryString(request)
       val response: HttpResponse[Array[Byte]] = Http(query).timeout(connTimeoutMs = 10000, readTimeoutMs = 10000).asBytes
       val responseBody = new String(response.body, charSet)
-
       if (!event.contains(Stopped)) {
         TrackerResponse.parse(responseBody) match {
           case sr: SuccessResponse => sender() ! UpdatePeersFromTracker(sr.peers, sr.interval)

@@ -1,5 +1,6 @@
 package storrent
 
+import java.io.{File, RandomAccessFile}
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.TimeUnit
 
@@ -7,7 +8,8 @@ import akka.actor.{ActorSystem, Props}
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import storrent.system.Client
-import storrent.torrent.Torrent
+import storrent.system.messages.Client.{StartClient, StopClient}
+import storrent.torrent.{FileInfo, Torrent}
 
 import scala.concurrent.ExecutionContextExecutor
 
@@ -27,13 +29,10 @@ object Main {
       System.exit(1)
     }
     val conf = ConfigFactory.load()
-
     val file = args(0)
-    val name = file.split('/').last.replace(".torrent", "")
-    val torrent = Torrent.fromFile(file, conf.getInt("storrent.block-size")).get
     val saveDir = args(1)
     val port = 56789
-
+    val torrent = Torrent.fromFile(file, conf.getInt("storrent.block-size")).get
 
     val system = ActorSystem("storrent", conf)
 
@@ -41,14 +40,14 @@ object Main {
     implicit val ec: ExecutionContextExecutor = system.dispatcher
 
     val client = system.actorOf(Props(classOf[Client], torrent, port, saveDir, system), "client")
-    client ! "start"
+    client ! StartClient
 
     Iterator.continually(scala.io.StdIn.readLine("> ")).takeWhile(_ != "q").foreach {
       case "foo" => println("bar")
       case _ => println("Unknown input")
     }
 
-    client ! "stop"
+    client ! StopClient
     Thread.sleep(1000)
     system.terminate()
   }

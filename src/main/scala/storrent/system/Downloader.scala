@@ -4,7 +4,7 @@ import java.io.{File, RandomAccessFile}
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import storrent.peerprotocol.Request
-import storrent.system.messages.Client.{BlockReceived, RequestBlock, RequestBlockFailed}
+import storrent.system.messages.Client.{BlockReceived, RequestBlock, RequestBlockFailed, StopClient}
 import storrent.system.messages.Downloader.{AddPeer, RemovePeer}
 import storrent.torrent.{FileInfo, Torrent}
 import storrent.trackerprotocol.PeerInfo
@@ -18,7 +18,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
   /** Path to download location. */
   private val downloadPath =
     if (torrent.files.length == 1) saveDir
-    else saveDir + "\\" + torrent.metaInfo.info.name
+    else saveDir + File.separator + torrent.metaInfo.info.name
 
   /** Message digest for piece validation. */
   private val messageDigest = java.security.MessageDigest.getInstance("SHA-1")
@@ -42,7 +42,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
   private var currentPiece: Int = nextPieceIndex()
 
   /** Array containing blocks that have been downloaded successfully for current piece. */
-  private var currentBlocks: Array[Array[Byte]] = Array[Array[Byte]]()
+  private var currentBlocks: Array[Array[Byte]] = newBlockBuffer()
 
   /**
    * Initialize torrent files before starting download.
@@ -97,10 +97,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     }
     if (downloadedPieces(currentPiece)) {
       currentPiece = nextPieceIndex()
-      if (currentPiece < 0) return
-
-      val blockCount = torrent.blockCount(currentPiece)
-      currentBlocks = new Array[Array[Byte]](blockCount)
+      currentBlocks = newBlockBuffer()
     }
     for (p <- peers) {
       val block = nextBlockIndex()
@@ -133,11 +130,21 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
   }
 
   /**
+   * Initialize new current blocks array based on current piece block count.
+   * @return
+   */
+  private def newBlockBuffer() : Array[Array[Byte]] =
+    if (currentPiece < 0) Array[Array[Byte]]()
+    else new Array[Array[Byte]](torrent.blockCount(currentPiece))
+
+  /**
    * Get index for block that will be downloaded next (blocks are requested sequentially).
    * @return Block index
    */
   private def nextBlockIndex(): Option[Int] =
-    currentBlocks.zipWithIndex.find(i => i._1 == null && !requestedBlocks.contains(i._2)).map(_._2)
+    currentBlocks.zipWithIndex
+      .find(i => i._1 == null && !requestedBlocks.contains(i._2))
+      .map(_._2)
 
   /**
    * Check that downloaded piece is correct.
@@ -157,7 +164,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     if (torrent.files.length > 1) {
       if (!new File(downloadPath).mkdir()) {
         log.error("Could not create directory for torrent")
-        client ! "stop"
+        client ! StopClient
       }
     }
     for (fileInfo <- torrent.files) {
@@ -172,7 +179,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
    * @param f File
    * @return File path
    */
-  private def filePath(f: FileInfo) = downloadPath + File.pathSeparator + f.path.mkString(File.pathSeparator)
+  private def filePath(f: FileInfo) = downloadPath + File.separator + f.path.mkString(File.separator)
 
   /**
    * Write downloaded piece to file / files.
@@ -186,7 +193,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     }
     downloadedPieces(currentPiece) = true
     val remaining = downloadedPieces.count(p => !p)
-    log.debug("Piece #" + currentPiece + " downloaded, " + remaining + " remaining.")
+    log.info("Piece #" + currentPiece + " downloaded, " + remaining + " remaining.")
   }
 
   /**
