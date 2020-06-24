@@ -154,17 +154,17 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
    * Set up files specified in torrent file.
    */
   private def initializeFiles(): Unit = {
-//    if (torrent.files.length > 1) {
-//      if (!new File(downloadPath).mkdir()) {
-//        log.error("Could not create directory for torrent")
-//        client ! "stop"
-//      }
-//    }
-//    for (fileInfo <- torrent.files) {
-//      val raf = new RandomAccessFile(filePath(fileInfo), "rw")
-//      raf.setLength(fileInfo.length)
-//      raf.close()
-//    }
+    if (torrent.files.length > 1) {
+      if (!new File(downloadPath).mkdir()) {
+        log.error("Could not create directory for torrent")
+        client ! "stop"
+      }
+    }
+    for (fileInfo <- torrent.files) {
+      val raf = new RandomAccessFile(filePath(fileInfo), "rw")
+      raf.setLength(fileInfo.length)
+      raf.close()
+    }
   }
 
   /**
@@ -179,11 +179,11 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
    * @param bytes Piece bytes
    */
   private def persistPieceToDisk(bytes: Array[Byte]): Unit = {
-//    if (torrent.files.length == 1) {
-//      persistPieceForSingleFileTorrent(bytes)
-//    } else {
-//      persistPieceForMultipleFileTorrent(currentPiece, bytes)
-//    }
+    if (torrent.files.length == 1) {
+      persistPieceForSingleFileTorrent(bytes)
+    } else {
+      persistPieceForMultipleFileTorrent(currentPiece, bytes)
+    }
     downloadedPieces(currentPiece) = true
     val remaining = downloadedPieces.count(p => !p)
     log.debug("Piece #" + currentPiece + " downloaded, " + remaining + " remaining.")
