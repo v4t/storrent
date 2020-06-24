@@ -6,6 +6,8 @@ import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.io.{IO, Tcp}
 import akka.util.ByteString
 import storrent.peerprotocol._
+import storrent.system.messages.Client.{BlockReceived, ChokeReceived, PeerConnected, PeerDisconnected, RequestBlockFailed, UnchokeReceived}
+import storrent.system.messages.Peer.Disconnect
 import storrent.torrent.Torrent
 import storrent.trackerprotocol.PeerInfo
 
@@ -18,13 +20,20 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
   import Tcp._
   import context.system
 
+  /** Peer ip */
   val remote = new InetSocketAddress(peer.ip, peer.port)
+
+  /** Pieces that peer has available */
   val peerBitfield: Array[Boolean] = new Array(torrent.pieceCount)
+
+  /** Peer message buffer */
   val tcpBuffer: ArrayBuffer[Byte] = ArrayBuffer[Byte]()
 
+  /** Choking flags for peer connection */
   var choking = true
   var peerChoking = true
 
+  /** Interested flags for peer connection */
   var interested = false
   var peerInterested = false
 
@@ -59,7 +68,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
       }
       if (Handshake.decode(handshakeBytes.toArray).isEmpty) {
         log.debug(s"[${peer.peerId}]: Failed to decode handshake")
-        self ! "close"
+        self ! Disconnect
       } else {
         context.become(active(connection))
         client ! PeerConnected(peer, self)
@@ -67,7 +76,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
         parseMessagesFromBuffer()
       }
 
-    case "close" => connection ! Close
+    case Disconnect => connection ! Close
 
     case _: ConnectionClosed => context.stop(self)
   }
@@ -79,7 +88,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
    */
   def active(connection: ActorRef): Receive = {
     case CommandFailed(w: Write) =>
-      client ! "write failed"
+      log.debug(s"[${peer.peerId}]: Failed writing to peer connection")
 
     case Received(data) =>
       tcpBuffer ++= data
@@ -94,7 +103,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
         sender ! RequestBlockFailed(r, peer)
       }
 
-    case "close" =>
+    case Disconnect =>
       log.debug(s"[${peer.peerId}]: close connection")
       connection ! Close
 

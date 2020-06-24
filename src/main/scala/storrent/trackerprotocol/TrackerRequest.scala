@@ -15,7 +15,6 @@ case class TrackerRequest(
 )
 
 object TrackerRequest {
-
   def getQueryString(request: TrackerRequest): String =
     request.baseUrl + "?" +
       s"info_hash=${request.infoHash}&" +
@@ -29,11 +28,9 @@ object TrackerRequest {
       (if (request.numWant.isDefined) s"&numwant=${request.numWant.get}" else "") +
       (if (request.ip.isDefined) s"&ip=${request.ip.get}" else "")
 
-
   private def eventToStr(event: TrackerEvent): String = event match {
     case Started => "started"
     case Stopped => "stopped"
     case Completed => "completed"
   }
-
 }

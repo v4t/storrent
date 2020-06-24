@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 import akka.actor.{ActorSystem, Props}
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
+import storrent.system.Client
 import storrent.torrent.Torrent
 
 import scala.concurrent.ExecutionContextExecutor
@@ -31,24 +32,25 @@ object Main {
     val name = file.split('/').last.replace(".torrent", "")
     val torrent = Torrent.fromFile(file, conf.getInt("storrent.block-size")).get
     val saveDir = args(1)
+    val port = 56789
 
 
-//    val system = ActorSystem("storrent", conf)
-//
-//    implicit val timeout: Timeout = Timeout(10, TimeUnit.SECONDS)
-//    implicit val ec: ExecutionContextExecutor = system.dispatcher
-//
-//    val client = system.actorOf(Props(classOf[Client], torrent, saveDir, system), "client")
-//    client ! "start"
-//
-//    Iterator.continually(scala.io.StdIn.readLine("> ")).takeWhile(_ != "q").foreach {
-//      case "foo" => println("bar")
-//      case _ => println("Unknown input")
-//    }
-//
-//    client ! "stop"
-//    Thread.sleep(1000)
-//    system.terminate()
+    val system = ActorSystem("storrent", conf)
+
+    implicit val timeout: Timeout = Timeout(10, TimeUnit.SECONDS)
+    implicit val ec: ExecutionContextExecutor = system.dispatcher
+
+    val client = system.actorOf(Props(classOf[Client], torrent, port, saveDir, system), "client")
+    client ! "start"
+
+    Iterator.continually(scala.io.StdIn.readLine("> ")).takeWhile(_ != "q").foreach {
+      case "foo" => println("bar")
+      case _ => println("Unknown input")
+    }
+
+    client ! "stop"
+    Thread.sleep(1000)
+    system.terminate()
   }
 }
 

@@ -7,6 +7,11 @@ trait Message {}
 object Message {
   implicit val byteOrder: ByteOrder = ByteOrder.BIG_ENDIAN
 
+  /**
+   * Decode given bytes into a valid peer protocol message.
+   * @param payload Message bytes
+   * @return
+   */
   def decode(payload: Array[Byte]): Option[Message] = {
     if (payload.length < 4) None
     else if (payload.length == 4) KeepAlive.decode(payload)
@@ -25,10 +30,16 @@ object Message {
     }
   }
 
+  /**
+   * Decode peer protocol message length from first 4 bytes of byte block.
+   * @param bytes Message bytes
+   * @return
+   */
   def decodeLength(bytes: Seq[Byte]): Option[Int] =
     if(bytes.length >= 4) Some(ByteBuffer.wrap(bytes.take(4).toArray).getInt)
     else None
 
+  /** Valid peer protocol message ids */
   object Id {
     val HANDSHAKE: Byte = -2
     val KEEP_ALIVE: Byte = -1

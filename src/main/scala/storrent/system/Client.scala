@@ -3,37 +3,18 @@ package storrent.system
 import java.net.InetSocketAddress
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
-import storrent.peerprotocol.{Piece, Request}
+import storrent.system.messages.Client._
+import storrent.system.messages.Downloader.{AddPeer, RemovePeer}
+import storrent.system.messages.Tracker.Update
 import storrent.torrent.Torrent
-import storrent.trackerprotocol.{Completed, PeerInfo, Started, Stopped}
+import storrent.trackerprotocol.{Completed, Started, Stopped}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.util.Random
 
-object Client {
-  case class Poop()
-}
-
-case class UpdatePeersFromTracker(peers: List[PeerInfo], interval: Long)
-
-case class PeerConnected(peer: PeerInfo, actor: ActorRef)
-
-case class PeerDisconnected(peer: PeerInfo)
-
-case class ChokeReceived(peer: PeerInfo)
-
-case class UnchokeReceived(peer: PeerInfo)
-
-case class RequestBlockFailed(request: Request, peer: PeerInfo)
-
-case class RequestBlock(request: Request, peer: PeerInfo)
-
-case class BlockReceived(block: Piece, peer: PeerInfo)
-
-class Client(torrent: Torrent, saveDir: String, system: ActorSystem) extends Actor with ActorLogging {
+class Client(torrent: Torrent, port: Int, saveDir: String, system: ActorSystem) extends Actor with ActorLogging {
   private val localId = Random.alphanumeric.take(20).mkString("")
-  private val port = 55555
   private val peerActorMap = mutable.Map[String, ActorRef]()
 
   private val listener = context.actorOf(
@@ -52,13 +33,13 @@ class Client(torrent: Torrent, saveDir: String, system: ActorSystem) extends Act
   )
 
   def receive: Receive = {
-    case "stop" =>
+    case StopClient =>
       tracker ! Update(torrent, Some(Stopped))
 
-    case "start" =>
+    case StartClient =>
       tracker ! Update(torrent, Some(Started))
 
-    case "complete" =>
+    case Complete =>
       tracker ! Update(torrent, Some(Completed))
 
     case UpdatePeersFromTracker(peerList, interval) =>

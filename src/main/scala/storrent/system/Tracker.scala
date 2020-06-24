@@ -5,15 +5,16 @@ import java.nio.charset.StandardCharsets
 
 import akka.actor.{Actor, ActorLogging}
 import scalaj.http._
+import storrent.system.messages.Client.UpdatePeersFromTracker
+import storrent.system.messages.Tracker.Update
 import storrent.torrent.Torrent
 import storrent.trackerprotocol._
-
-case class Update(torrent: Torrent, event: Option[TrackerEvent])
 
 class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
   private val charSet = StandardCharsets.ISO_8859_1
 
   def receive: Receive = {
+    case Update(torrent, event) => None
     case Update(torrent, event) => {
       val request = populateTrackerRequest(torrent, event)
       val query = TrackerRequest.getQueryString(request)

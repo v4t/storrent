@@ -19,8 +19,18 @@ class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
 
   val pieceCount: Int = Math.ceil(metaInfo.info.pieces.length / 20.0).toInt
 
+  /**
+   * Calculate amount of blocks needed for given piece.
+   * @param piece Piece index
+   * @return
+   */
   def blockCount(piece: Int): Int = Math.ceil(pieceSize(piece) / defaultBlockSize.toFloat).toInt
 
+  /**
+   * Calculate piece size in bytes.
+   * @param piece Piece index
+   * @return
+   */
   def pieceSize(piece: Int): Int = {
     if (piece == pieceCount - 1) {
       val remainder = totalLength % defaultPieceSize
@@ -30,6 +40,12 @@ class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
     }
   }
 
+  /**
+   * Calculate block size in bytes.
+   * @param piece Piece index
+   * @param block Block index
+   * @return
+   */
   def blockSize(piece: Int, block: Int): Int = {
     if (block == blockCount(piece) - 1) {
       val remainder = pieceSize(piece) % defaultBlockSize
@@ -39,14 +55,29 @@ class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
     }
   }
 
+  /**
+   * Get verification hash for piece
+   * @param piece Piece index
+   * @return
+   */
   def pieceVerificationHash(piece: Int): Array[Byte] = verificationHashes(piece).getBytes(StandardCharsets.ISO_8859_1)
 
+  /**
+   * List of files encoded in the torrent
+   * @return
+   */
   def files: List[FileInfo] = metaInfo.info.files
 
 }
 
 object Torrent {
 
+  /**
+   * Construct torrent object from torrent file.
+   * @param file Torrent file path
+   * @param blockSize Default block size for torrent
+   * @return
+   */
   def fromFile(file: String, blockSize: Int): Option[Torrent] = {
     val bencodeValues = parseSource(file).get
     MetaInfo.fromBencode(bencodeValues) match {
@@ -55,6 +86,11 @@ object Torrent {
     }
   }
 
+  /**
+   * Parse torrent from .torrent file.
+   * @param filePath Path to torrent file
+   * @return
+   */
   private def parseSource(filePath: String): Try[List[BencodeValue]] = {
     lazy val source = Source.fromFile(filePath)(Codec.ISO8859)
     try {

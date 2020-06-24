@@ -4,6 +4,8 @@ import java.io.{File, RandomAccessFile}
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import storrent.peerprotocol.Request
+import storrent.system.messages.Client.{BlockReceived, RequestBlock, RequestBlockFailed}
+import storrent.system.messages.Downloader.{AddPeer, RemovePeer}
 import storrent.torrent.{FileInfo, Torrent}
 import storrent.trackerprotocol.PeerInfo
 
@@ -11,11 +13,8 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.Random
 
-case class AddPeer(peer: PeerInfo)
-
-case class RemovePeer(peer: PeerInfo)
-
 class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Actor with ActorLogging {
+
   /** Path to download location. */
   private val downloadPath =
     if (torrent.files.length == 1) saveDir
