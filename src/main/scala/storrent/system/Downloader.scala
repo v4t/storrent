@@ -15,6 +15,8 @@ import scala.util.Random
 
 class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Actor with ActorLogging {
 
+  type BlockList = Array[Array[Byte]]
+
   /** Path to download location. */
   private val downloadPath =
     if (torrent.files.length == 1) saveDir
@@ -42,7 +44,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
   private var currentPiece: Int = nextPieceIndex()
 
   /** Array containing blocks that have been downloaded successfully for current piece. */
-  private var currentBlocks: Array[Array[Byte]] = newBlockBuffer()
+  private var currentBlocks: BlockList = newBlockBuffer()
 
   /**
    * Initialize torrent files before starting download.
@@ -112,12 +114,14 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 
   /**
    * Return boolean flag signifying whether download is complete or not.
+   *
    * @return True if download is complete, otherwise false
    */
   private def downloadComplete() = !downloadedPieces.contains(false)
 
   /**
    * Get index for piece that will be downloaded next.
+   *
    * @return Piece index
    */
   private def nextPieceIndex(): Int = {
@@ -131,14 +135,16 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 
   /**
    * Initialize new current blocks array based on current piece block count.
+   *
    * @return
    */
-  private def newBlockBuffer() : Array[Array[Byte]] =
-    if (currentPiece < 0) Array[Array[Byte]]()
-    else new Array[Array[Byte]](torrent.blockCount(currentPiece))
+  private def newBlockBuffer(): BlockList =
+    if (currentPiece < 0) new BlockList(0)
+    else new BlockList(torrent.blockCount(currentPiece))
 
   /**
    * Get index for block that will be downloaded next (blocks are requested sequentially).
+   *
    * @return Block index
    */
   private def nextBlockIndex(): Option[Int] =
@@ -148,6 +154,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 
   /**
    * Check that downloaded piece is correct.
+   *
    * @param piece Piece index
    * @param bytes Piece bytes
    * @return True if piece is correct, otherwise false
@@ -176,6 +183,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 
   /**
    * Return download file path for given file.
+   *
    * @param f File
    * @return File path
    */
@@ -183,11 +191,12 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 
   /**
    * Write downloaded piece to file / files.
+   *
    * @param bytes Piece bytes
    */
   private def persistPieceToDisk(bytes: Array[Byte]): Unit = {
     if (torrent.files.length == 1) {
-      persistPieceForSingleFileTorrent(bytes)
+      persistPieceForSingleFileTorrent(currentPiece, bytes)
     } else {
       persistPieceForMultipleFileTorrent(currentPiece, bytes)
     }
@@ -198,10 +207,12 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 
   /**
    * Write piece to a file specified in a single file torrent.
+   *
+   * @param piece Piece index
    * @param bytes Piece bytes
    */
-  private def persistPieceForSingleFileTorrent(bytes: Array[Byte]): Unit = {
-    val pieceOffset = currentPiece * torrent.defaultPieceSize
+  private def persistPieceForSingleFileTorrent(piece: Int, bytes: Array[Byte]): Unit = {
+    val pieceOffset = piece * torrent.defaultPieceSize
     val f = new RandomAccessFile(filePath(torrent.files.head), "rw")
     f.seek(pieceOffset)
     f.write(bytes)
@@ -210,27 +221,32 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 
   /**
    * Write piece to file(s) specified in a multi-file torrent.
+   *
    * @param piece Piece index
    * @param bytes Piece bytes
    */
   private def persistPieceForMultipleFileTorrent(piece: Int, bytes: Array[Byte]): Unit = {
     val pieceSize = torrent.pieceSize(piece)
-    val fileStartingPositions: List[Long] = torrent.files.map(_.length).scan(0L)(_ + _)
+    val fileOffsets: List[Long] = torrent.files.map(_.length).scan(0L)(_ + _)
+    val pieceOffset = piece * pieceSize
 
-    val files = for {
-      (file, fileStart) <- torrent.files.zip(fileStartingPositions)
-      if ((fileStart <= piece && piece < fileStart + file.length) // Piece start is within file
-        || (fileStart >= piece && piece + pieceSize > fileStart)) // Piece overlaps file
-    } yield file
+    // Data is just flat byte stream, so we have to figure out the file offsets to place the file on the byte stream.
+    val filesWithOffsets = for {
+      (file, fileStart) <- torrent.files.zip(fileOffsets)
+      if ((fileStart <= pieceOffset && pieceOffset < fileStart + file.length) // Piece byte offset is within file
+        || (fileStart >= pieceOffset && pieceOffset + pieceSize > fileStart)) // Piece overlaps file
+    } yield (file, fileStart)
 
-    val firstPieceOffset = piece * pieceSize - fileStartingPositions.head
-    writePieceToFiles(bytes, files, firstPieceOffset)
+    // Also find out the offset for piece on file
+    val pieceOffsetWithinFile = pieceOffset - filesWithOffsets.head._2
+    writePieceToFiles(bytes, filesWithOffsets.map(_._1), pieceOffsetWithinFile)
   }
 
   /**
    * Write piece to files it possibly spans over.
-   * @param bytes Piece bytes
-   * @param files Files that contain bytes from piece
+   *
+   * @param bytes       Piece bytes
+   * @param files       Files that contain bytes from piece
    * @param pieceOffset Piece offset for current file
    */
   @tailrec
