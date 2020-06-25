@@ -35,6 +35,7 @@ class Client(torrent: Torrent, port: Int, saveDir: String, system: ActorSystem) 
   def receive: Receive = {
     case StopClient =>
       tracker ! Update(torrent, Some(Stopped))
+      system.terminate()
 
     case StartClient =>
       tracker ! Update(torrent, Some(Started))

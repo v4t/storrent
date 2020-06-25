@@ -91,10 +91,12 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 
   /**
    * Request blocks to be downloaded from peers if download is not complete.
+   * When download is complete, shut down the client.
    */
   private def requestBlocks(): Unit = {
     if (currentPiece < 0 || downloadComplete()) {
-      log.info("Download complete")
+      println("Download complete, shutting down...")
+      client ! StopClient
       return
     }
     if (downloadedPieces(currentPiece)) {
