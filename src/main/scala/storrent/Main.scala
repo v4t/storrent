@@ -31,7 +31,7 @@ object Main {
     val file = args(0)
     val saveDir = args(1)
     val port = conf.getInt("storrent.port")
-    val torrent = Torrent.fromFile(file, conf.getInt("storrent.block-size")).get
+    val torrent = Torrent.fromFile(file, saveDir, conf.getInt("storrent.block-size")).get
 
     // Set up actor system
     val system = ActorSystem("storrent", conf)
@@ -39,7 +39,7 @@ object Main {
     implicit val timeout: Timeout = Timeout(10, TimeUnit.SECONDS)
     implicit val ec: ExecutionContextExecutor = system.dispatcher
 
-    val client = system.actorOf(Props(classOf[Client], torrent, port, saveDir, system), "client")
+    val client = system.actorOf(Props(classOf[Client], torrent, port, system), "client")
     client ! StartClient
   }
 

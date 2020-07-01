@@ -15,7 +15,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
 
-class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) extends Actor with ActorLogging{
+class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) extends Actor with ActorLogging {
 
   import Tcp._
   import context.system
@@ -41,6 +41,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
 
   /**
    * Initial actor context for connecting with peers.
+   *
    * @return
    */
   def receive = {
@@ -57,6 +58,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
 
   /**
    * Peer is waiting for protocol handshake to be completed.
+   *
    * @param connection Peer connection
    * @return
    */
@@ -83,6 +85,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
 
   /**
    * Peer is actively receiving / sending messages.
+   *
    * @param connection Peer connection
    * @return
    */
@@ -128,6 +131,7 @@ class Peer(peer: PeerInfo, torrent: Torrent, localId: String, client: ActorRef) 
 
   /**
    * Parse given bytes into peer protocol message.
+   *
    * @param message Byte block containing peer protocol message
    */
   private def handleMessage(message: Array[Byte]): Unit = {

@@ -4,7 +4,7 @@ import java.io.{File, RandomAccessFile}
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import storrent.peerprotocol.Request
-import storrent.system.messages.Client.{BlockReceived, RequestBlock, RequestBlockFailed, StopClient}
+import storrent.system.messages.Client.{BlockReceived, Complete, RequestBlock, RequestBlockFailed, StopClient}
 import storrent.system.messages.Downloader.{AddPeer, RemovePeer}
 import storrent.torrent.{FileInfo, Torrent}
 import storrent.trackerprotocol.PeerInfo
@@ -13,14 +13,9 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.Random
 
-class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Actor with ActorLogging {
+class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLogging {
 
   type BlockList = Array[Array[Byte]]
-
-  /** Path to download location. */
-  private val downloadPath =
-    if (torrent.files.length == 1) saveDir
-    else saveDir + File.separator + torrent.metaInfo.info.name
 
   /** Message digest for piece validation. */
   private val messageDigest = java.security.MessageDigest.getInstance("SHA-1")
@@ -91,12 +86,10 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
 
   /**
    * Request blocks to be downloaded from peers if download is not complete.
-   * When download is complete, shut down the client.
    */
   private def requestBlocks(): Unit = {
     if (currentPiece < 0 || downloadComplete()) {
-      println("Download complete, shutting down...")
-      client ! StopClient
+      client ! Complete
       return
     }
     if (downloadedPieces(currentPiece)) {
@@ -119,7 +112,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
    *
    * @return True if download is complete, otherwise false
    */
-  private def downloadComplete() = !downloadedPieces.contains(false)
+  private def downloadComplete(): Boolean = !downloadedPieces.contains(false)
 
   /**
    * Get index for piece that will be downloaded next.
@@ -171,25 +164,17 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
    */
   private def initializeFiles(): Unit = {
     if (torrent.files.length > 1) {
-      if (!new File(downloadPath).mkdir()) {
-        log.error("Could not create directory for torrent")
+      if (!new File(torrent.downloadPath).mkdir()) {
+        println("Could not create directory for torrent")
         client ! StopClient
       }
     }
     for (fileInfo <- torrent.files) {
-      val raf = new RandomAccessFile(filePath(fileInfo), "rw")
+      val raf = new RandomAccessFile(torrent.filePath(fileInfo), "rw")
       raf.setLength(fileInfo.length)
       raf.close()
     }
   }
-
-  /**
-   * Return download file path for given file.
-   *
-   * @param f File
-   * @return File path
-   */
-  private def filePath(f: FileInfo) = downloadPath + File.separator + f.path.mkString(File.separator)
 
   /**
    * Write downloaded piece to file / files.
@@ -204,7 +189,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
     }
     downloadedPieces(currentPiece) = true
     val remaining = downloadedPieces.count(p => !p)
-    log.info("Piece #" + currentPiece + " downloaded, " + remaining + " remaining.")
+    println("Piece #" + currentPiece + " downloaded, " + remaining + " remaining.")
   }
 
   /**
@@ -215,7 +200,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
    */
   private def persistPieceForSingleFileTorrent(piece: Int, bytes: Array[Byte]): Unit = {
     val pieceOffset = piece * torrent.defaultPieceSize
-    val f = new RandomAccessFile(filePath(torrent.files.head), "rw")
+    val f = new RandomAccessFile(torrent.filePath(torrent.files.head), "rw")
     f.seek(pieceOffset)
     f.write(bytes)
     f.close()
@@ -259,7 +244,7 @@ class Downloader(client: ActorRef, torrent: Torrent, saveDir: String) extends Ac
       if (pieceOffset + bytes.length > file.length) (file.length - pieceOffset).toInt
       else bytes.length
 
-    val f = new RandomAccessFile(filePath(file), "rw")
+    val f = new RandomAccessFile(torrent.filePath(file), "rw")
     f.seek(pieceOffset)
     f.write(bytes.take(byteCount))
     f.close()

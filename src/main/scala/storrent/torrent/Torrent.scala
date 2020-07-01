@@ -1,5 +1,6 @@
 package storrent.torrent
 
+import java.io.File
 import java.nio.charset.StandardCharsets
 
 import storrent.bencode.{BencodeParser, BencodeValue}
@@ -7,7 +8,7 @@ import storrent.bencode.{BencodeParser, BencodeValue}
 import scala.io.{Codec, Source}
 import scala.util.{Failure, Success, Try}
 
-class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
+class Torrent(private val savePath: String, val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
 
   private val verificationHashes: Array[String] = metaInfo.info.pieces.grouped(20).toArray
 
@@ -19,8 +20,21 @@ class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
 
   val pieceCount: Int = Math.ceil(metaInfo.info.pieces.length / 20.0).toInt
 
+  val downloadPath: String =
+    if (files.length == 1) savePath
+    else savePath + File.separator + metaInfo.info.name
+
+  /**
+   * Return file path for given file.
+   *
+   * @param f File
+   * @return File path
+   */
+  def filePath(f: FileInfo): String = downloadPath + File.separator + f.path.mkString(File.separator)
+
   /**
    * Calculate amount of blocks needed for given piece.
+   *
    * @param piece Piece index
    * @return
    */
@@ -28,6 +42,7 @@ class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
 
   /**
    * Calculate piece size in bytes.
+   *
    * @param piece Piece index
    * @return
    */
@@ -42,6 +57,7 @@ class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
 
   /**
    * Calculate block size in bytes.
+   *
    * @param piece Piece index
    * @param block Block index
    * @return
@@ -57,6 +73,7 @@ class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
 
   /**
    * Get verification hash for piece
+   *
    * @param piece Piece index
    * @return
    */
@@ -64,6 +81,7 @@ class Torrent(val metaInfo: MetaInfo, val defaultBlockSize: Int = 16384) {
 
   /**
    * List of files encoded in the torrent
+   *
    * @return
    */
   def files: List[FileInfo] = metaInfo.info.files
@@ -74,20 +92,23 @@ object Torrent {
 
   /**
    * Construct torrent object from torrent file.
-   * @param file Torrent file path
+   *
+   * @param file      Torrent file path
+   * @param savePath  Path to download directory
    * @param blockSize Default block size for torrent
    * @return
    */
-  def fromFile(file: String, blockSize: Int): Option[Torrent] = {
+  def fromFile(file: String, savePath: String, blockSize: Int): Option[Torrent] = {
     val bencodeValues = parseSource(file).get
     MetaInfo.fromBencode(bencodeValues) match {
-      case Success(metaInfo) => Some(new Torrent(metaInfo, blockSize))
+      case Success(metaInfo) => Some(new Torrent(savePath, metaInfo, blockSize))
       case Failure(_) => None
     }
   }
 
   /**
    * Parse torrent from .torrent file.
+   *
    * @param filePath Path to torrent file
    * @return
    */
