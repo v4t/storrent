@@ -14,8 +14,8 @@ class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
   private val charSet = StandardCharsets.ISO_8859_1
 
   def receive: Receive = {
-    case Update(torrent, event) => {
-      val request = populateTrackerRequest(torrent, event)
+    case Update(torrent, event, downloaded, uploaded) => {
+      val request = populateTrackerRequest(torrent, event, downloaded, uploaded)
       val query = TrackerRequest.getQueryString(request)
       val response: HttpResponse[Array[Byte]] = Http(query)
         .option(HttpOptions.followRedirects(true))
@@ -56,13 +56,15 @@ class Tracker(localId: String, port: Int) extends Actor with ActorLogging {
    * @param event   Tracker event to be sent
    * @return
    */
-  private def populateTrackerRequest(torrent: Torrent, event: Option[TrackerEvent]): TrackerRequest =
-  // TODO: Implement getting real data for uploaded & downloaded parameters
+  private def populateTrackerRequest(
+    torrent: Torrent, event: Option[TrackerEvent], downloaded: Long, uploaded: Long
+  ): TrackerRequest =
+    // TODO: Implement getting real data for uploaded & downloaded parameters
     TrackerRequest(
       baseUrl = torrent.metaInfo.announceList.head,
       infoHash = URLEncoder.encode(new String(torrent.metaInfo.infoHash, charSet), charSet),
-      uploaded = 0,
-      downloaded = 0,
+      uploaded = uploaded,
+      downloaded = downloaded,
       left = torrent.totalLength,
       peerId = URLEncoder.encode(localId, charSet),
       port = port,

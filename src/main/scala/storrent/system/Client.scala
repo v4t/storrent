@@ -15,10 +15,12 @@ import scala.concurrent.duration._
 import scala.util.Random
 
 class Client(torrent: Torrent, port: Int, system: ActorSystem) extends Actor with ActorLogging {
-  private val localId = Random.alphanumeric.take(20).mkString("")
-  private val peerActorMap = mutable.Map[String, ActorRef]()
+  private val localId: String = Random.alphanumeric.take(20).mkString("")
+  private val peerActorMap: mutable.Map[String, ActorRef] = mutable.Map[String, ActorRef]()
 
-  private var complete = false;
+  private var complete: Boolean = false
+  private var downloadedBytes: Long = 0
+  private var uploadedBytes: Long = 0
 
   private val listener = context.actorOf(
     Props(classOf[ConnectionListener], new InetSocketAddress(port), system),
@@ -37,7 +39,7 @@ class Client(torrent: Torrent, port: Int, system: ActorSystem) extends Actor wit
 
   def receive: Receive = {
     case StopClient =>
-      tracker ! Update(torrent, Some(Stopped))
+      tracker ! Update(torrent, Some(Stopped), downloadedBytes, uploadedBytes)
       if (!complete) {
         println("Client closed before completing download. Removing incomplete files.")
         cleanUpFiles()
@@ -49,7 +51,7 @@ class Client(torrent: Torrent, port: Int, system: ActorSystem) extends Actor wit
 
     case Complete =>
       complete = true
-      tracker ! Update(torrent, Some(Completed))
+      tracker ! Update(torrent, Some(Completed), downloadedBytes, uploadedBytes)
       println("Download complete, shutting down...")
       self ! StopClient
 
@@ -58,7 +60,9 @@ class Client(torrent: Torrent, port: Int, system: ActorSystem) extends Actor wit
         Props(classOf[Peer], p, torrent, localId, self),
         "peer-" + p.ip + "-" + Random.alphanumeric.take(5).mkString("")
       ))
-      context.system.scheduler.scheduleOnce(interval seconds, self, Update(torrent, None))(system.dispatcher)
+      context.system.scheduler.scheduleOnce(
+        interval seconds, self, Update(torrent, None, downloadedBytes, uploadedBytes)
+      )(system.dispatcher)
 
     case PeerConnected(peer, actor) =>
       log.info(peer.peerId + ": connected")
@@ -85,6 +89,9 @@ class Client(torrent: Torrent, port: Int, system: ActorSystem) extends Actor wit
       downloader ! msg
 
     case msg@BlockReceived(piece, peer) =>
+      downloadedBytes += piece.block.length
+      val percentDone = (downloadedBytes / torrent.totalLength.toDouble) * 100
+      println(f"Downloaded: $percentDone%.2f%%")
       downloader ! msg
 
   }
@@ -99,6 +106,7 @@ class Client(torrent: Torrent, port: Int, system: ActorSystem) extends Actor wit
       }
       if (file.exists()) file.delete()
     }
+
     if (torrent.files.length > 1) {
       recursiveDelete(new File(torrent.downloadPath))
     }

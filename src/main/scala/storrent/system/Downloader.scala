@@ -189,7 +189,7 @@ class Downloader(client: ActorRef, torrent: Torrent) extends Actor with ActorLog
     }
     downloadedPieces(currentPiece) = true
     val remaining = downloadedPieces.count(p => !p)
-    println("Piece #" + currentPiece + " downloaded, " + remaining + " remaining.")
+    log.info("Piece #" + currentPiece + " downloaded, " + remaining + " remaining.")
   }
 
   /**
